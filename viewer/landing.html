@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Margin — review what your agent makes, rendered, on your phone</title>
+<meta name="description" content="Margin shows your agent's output the way it'll actually look — rendered HTML or Markdown — on a private link. Tap any line, leave a comment, and it revises. No login." />
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FAF6EC;--card:#FFFFFF;--ink:#13131A;--muted:#6E6A5E;--soft:#9A9486;
+    --coral:#FF6B4A;--violet:#6E5BFF;--honey:#FFC857;--mint:#7DD3C0;
+    --hair:rgba(19,19,26,.10);
+    --font-serif:'Newsreader',Georgia,serif;
+    --font-sans:'Inter',system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
+    --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --maxw:1180px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-sans);font-size:17px;line-height:1.6;font-feature-settings:"ss01","cv11";-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  a{color:inherit}
+  button{font-family:inherit;cursor:pointer}
+  ::selection{background:var(--honey);color:var(--ink)}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px;position:relative}
+  @media(min-width:1024px){.wrap{padding:0 40px}}
+
+  /* type */
+  .eyebrow{font-family:var(--font-sans);font-size:12px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin:0 0 20px}
+  h1.display,h2.display{font-family:var(--font-serif);font-weight:400;letter-spacing:-.04em;margin:0;color:var(--ink)}
+  h1.display{font-size:clamp(44px,7.6vw,92px);line-height:.98}
+  h2.display{font-size:clamp(32px,5vw,56px);line-height:1.02}
+  .em{font-style:italic}
+  .coral-text{background:linear-gradient(100deg,var(--coral),#ff8a4a 55%,var(--honey));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .violet-text{background:linear-gradient(100deg,var(--violet),var(--coral));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lead{font-size:clamp(16px,1.6vw,19px);color:rgba(19,19,26,.72);max-width:600px;margin:22px 0 0}
+  .mono{font-family:var(--font-mono)}
+
+  section{padding:80px 0;border-bottom:1px solid var(--hair);position:relative;overflow:hidden}
+  @media(min-width:1024px){section{padding:96px 0}}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:40;background:rgba(250,246,236,.8);backdrop-filter:blur(12px);border-bottom:1px solid var(--hair)}
+  .nav{display:flex;align-items:center;gap:16px;height:64px}
+  .brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+  .brand .mark{flex:0 0 auto}
+  .brand .mk{font-weight:600;font-size:18px;letter-spacing:-.01em;color:var(--ink)}
+  .brand .by{font-size:13px;font-weight:300;color:var(--muted)}
+  @media(max-width:520px){.brand .by{display:none}}
+  .nav .sp{flex:1}
+  .nav a.navlink{color:var(--muted);text-decoration:none;font-size:13.5px;font-weight:500;padding:8px 8px}
+  .nav a.navlink:hover{color:var(--ink)}
+  @media(max-width:720px){.nav a.navlink.hideS{display:none}}
+
+  /* buttons */
+  .btn{display:inline-flex;align-items:center;gap:9px;border:0;border-radius:9999px;padding:0 22px;height:48px;font-size:15px;font-weight:500;text-decoration:none;transition:background .18s ease,color .18s ease,transform .06s ease}
+  .btn:active{transform:translateY(1px)}
+  .btn .ar{transition:transform .18s ease}
+  .btn:hover .ar{transform:translateX(3px)}
+  .btn.primary{background:var(--ink);color:var(--paper)}
+  .btn.primary:hover{background:var(--coral)}
+  .btn.secondary{background:var(--card);color:var(--ink);border:1px solid var(--hair)}
+  .btn.secondary:hover{background:rgba(255,200,87,.4)}
+  .btn.nav-cta{height:38px;font-size:14px;padding:0 16px}
+
+  /* sticker + cards */
+  .sticker{box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 8px 24px -10px rgba(19,19,26,.28)}
+  .card{background:var(--card);border:1px solid var(--hair);border-radius:24px}
+  .wash-coral{background:rgba(255,107,74,.1)}
+  .wash-violet{background:rgba(110,91,255,.1)}
+  .wash-honey{background:rgba(255,200,87,.16)}
+
+  /* traffic-light terminal motif */
+  .tl{display:inline-flex;gap:6px}
+  .tl i{width:9px;height:9px;border-radius:50%;display:block}
+  .tl .c{background:var(--coral)}.tl .h{background:var(--honey)}.tl .m{background:var(--mint)}
+  .tlrow{display:flex;align-items:center;gap:11px;padding-bottom:13px;border-bottom:1px solid var(--hair);margin-bottom:13px}
+  .tlrow .mono{font-size:11.5px;color:var(--muted);letter-spacing:.03em}
+
+  /* live pulse dot */
+  .live{position:relative;width:8px;height:8px;border-radius:50%;background:var(--coral);flex:0 0 auto}
+  .live:before{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--coral);animation:pulse 2.6s cubic-bezier(.16,1,.3,1) infinite}
+  @keyframes pulse{0%{transform:scale(.5);opacity:.9}100%{transform:scale(1.9);opacity:0}}
+
+  /* blobs */
+  .blobs{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+  .orb{position:absolute;border-radius:50%;filter:blur(90px);opacity:.2;animation:orb 12s ease-in-out infinite}
+  @keyframes orb{0%,100%{transform:translateY(0) scale(1);opacity:.16}50%{transform:translateY(-16px) scale(1.05);opacity:.26}}
+  .wobble{animation:wobble 6s ease-in-out infinite}
+  @keyframes wobble{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
+  .wrap{z-index:1}
+
+  /* hero */
+  .hero{padding:60px 0 84px;border-bottom:1px solid var(--hair);position:relative;overflow:hidden}
+  .hero-grid{display:grid;grid-template-columns:1fr;gap:44px;align-items:center}
+  @media(min-width:980px){.hero-grid{grid-template-columns:7fr 5fr;gap:54px}}
+  .pill{display:inline-flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--hair);border-radius:9999px;padding:7px 15px 7px 13px;font-size:11.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .hero h1.display{margin:22px 0 0}
+  .cta{display:flex;gap:13px;flex-wrap:wrap;margin-top:32px}
+  .stats{display:flex;gap:34px;flex-wrap:wrap;margin-top:38px;padding-top:26px;border-top:1px solid var(--hair)}
+  .stat .n{font-family:var(--font-serif);font-size:30px;line-height:1;letter-spacing:-.02em}
+  .stat .c{font-size:13px;color:var(--muted);margin-top:7px}
+
+  .hero-r{position:relative}
+  .shipcard{padding:18px}
+  .shipcard.card{transform:rotate(-1.4deg)}
+  .log{font-size:13px;line-height:1.95;color:rgba(19,19,26,.82)}
+  .log .t{color:var(--soft);margin-right:8px}
+  .log .hl-coral{color:var(--coral);font-weight:500}
+  .log .hl-mint{color:#2fae93;font-weight:500}
+  .log .live-row{display:flex;align-items:center;gap:9px;margin-top:8px;color:var(--muted)}
+  .tagsticker{position:absolute;top:-16px;right:-10px;background:var(--violet);color:#fff;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:9999px;transform:rotate(6deg)}
+
+  /* generic eyebrow+head block spacing */
+  .head-lead{max-width:620px}
+
+  /* where this fits */
+  .twocards{display:grid;grid-template-columns:1fr;gap:18px;margin-top:44px}
+  @media(min-width:760px){.twocards{grid-template-columns:1fr 1fr}}
+  .fitcard{padding:24px;transform:rotate(-.5deg)}
+  .fitcard:nth-child(2){transform:rotate(.5deg)}
+  .fitcard .ic{color:var(--coral);margin:4px 0 14px}.fitcard .ic svg{width:30px;height:30px}
+  .fitcard h3{font-family:var(--font-serif);font-weight:400;font-size:23px;letter-spacing:-.02em;margin:0 0 8px}
+  .fitcard p{margin:0;color:rgba(19,19,26,.7);font-size:15px}
+  .punch{margin:34px 0 0;font-family:var(--font-serif);font-weight:400;font-size:clamp(22px,3vw,30px);line-height:1.3;letter-spacing:-.02em;max-width:840px;color:var(--ink)}
+  .punch b{font-weight:500}
+
+  /* formats */
+  .fmts{display:grid;grid-template-columns:1fr;gap:18px;margin-top:44px}
+  @media(min-width:760px){.fmts{grid-template-columns:repeat(3,1fr)}}
+  .fmt{padding:24px}
+  .fmt .ic{color:var(--coral);margin-bottom:16px}.fmt .ic svg{width:30px;height:30px}
+  .fmt.is-soon .ic{color:var(--soft)}
+  .fmt .nm{font-family:var(--font-serif);font-weight:400;font-size:24px;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
+  .fmt.is-soon .nm{color:var(--muted)}
+  .st{display:inline-flex;align-items:center;gap:7px;margin-top:11px;font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-family:var(--font-mono)}
+  .st i{width:8px;height:8px;border-radius:50%}
+  .st.ready{color:#2fae93}.st.ready i{background:var(--mint)}
+  .st.soon{color:var(--muted)}.st.soon i{background:var(--honey)}
+  .fmt p{margin:13px 0 0;font-size:14.5px;color:rgba(19,19,26,.7)}
+  .badge-soon{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#9a6a14;background:rgba(255,200,87,.3);border-radius:9999px;padding:3px 9px;font-family:var(--font-sans)}
+
+  /* loop */
+  .loop{display:grid;grid-template-columns:1fr;gap:24px;margin-top:46px}
+  @media(min-width:760px){.loop{grid-template-columns:repeat(3,1fr);gap:0}}
+  .lstep{padding:0 28px 0 0}
+  @media(min-width:760px){.lstep+ .lstep{border-left:1px solid var(--hair);padding-left:28px}}
+  .lno{display:inline-flex;align-items:center;gap:9px;font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--muted)}
+  .lno i{width:9px;height:9px;border-radius:50%}
+  .lstep:nth-child(1) .lno i{background:var(--coral)}
+  .lstep:nth-child(2) .lno i{background:var(--violet)}
+  .lstep:nth-child(3) .lno i{background:var(--honey)}
+  .lstep h3{font-family:var(--font-serif);font-weight:400;font-size:23px;letter-spacing:-.02em;margin:15px 0 8px}
+  .lstep p{margin:0;color:rgba(19,19,26,.7);font-size:15px}
+
+  /* install */
+  .steps{margin-top:44px}
+  .step-row{display:grid;grid-template-columns:46px 1fr;gap:20px;padding:30px 0;border-top:1px solid var(--hair)}
+  .step-row:first-child{border-top:0}
+  .snum{font-family:var(--font-serif);font-style:italic;font-size:38px;line-height:1;color:var(--coral)}
+  .step-row h3{font-family:var(--font-serif);font-weight:400;font-size:25px;letter-spacing:-.02em;margin:0 0 8px}
+  .step-row p{margin:0 0 14px;color:rgba(19,19,26,.72);font-size:15.5px}
+  .step-row p:last-child{margin-bottom:0}
+
+  /* tabs */
+  .tabs{display:inline-flex;gap:4px;background:rgba(19,19,26,.05);border:1px solid var(--hair);border-radius:9999px;padding:4px;margin:4px 0 18px}
+  .tab{border:0;background:transparent;color:var(--muted);font-size:14px;font-weight:500;padding:9px 17px;border-radius:9999px;transition:background .15s,color .15s}
+  .tab.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(19,19,26,.14)}
+  .tabpane{display:none}.tabpane.on{display:block}
+  .tab-note{display:inline-flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--coral);margin-bottom:12px}
+  .tab-note i{width:7px;height:7px;border-radius:50%;background:var(--coral)}
+
+  /* code (ink terminal cards) */
+  .code{position:relative;background:var(--ink);border-radius:14px;padding:16px 56px 16px 18px;font:13.5px/1.6 var(--font-mono);color:#E9E3D4;overflow-x:auto;white-space:pre-wrap;word-break:break-word}
+  .code .cmt{color:#8d897c}
+  .code .tok{color:#ffb59a}
+  .copy{position:absolute;top:10px;right:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#e9e3d4;border-radius:9999px;padding:6px 13px;font-size:12px;font-weight:500}
+  .copy:hover{background:var(--coral);border-color:var(--coral);color:#fff}
+  .copy.ok{background:var(--mint);border-color:var(--mint);color:var(--ink)}
+  .say{display:inline-block;background:rgba(255,107,74,.12);border:1px solid rgba(255,107,74,.32);color:#c64829;border-radius:9999px;padding:9px 18px;font-size:15px;font-weight:600}
+  .tiny{font-size:13.5px;color:var(--muted);margin-top:12px}
+  a.inl{color:var(--coral);font-weight:500;text-decoration:none;border-bottom:1px solid rgba(255,107,74,.4)}
+  a.inl:hover{border-bottom-color:var(--coral)}
+
+  details.alt{margin-top:30px;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+  details.alt>summary{list-style:none;cursor:pointer;padding:20px 2px;font-weight:500;font-size:16px;display:flex;align-items:center;gap:12px;color:var(--ink)}
+  details.alt>summary::-webkit-details-marker{display:none}
+  details.alt>summary .chev{margin-left:auto;width:24px;height:24px;border-radius:50%;border:1px solid var(--hair);display:grid;place-items:center;color:var(--muted);font-size:16px;transition:transform .25s ease}
+  details.alt[open]>summary .chev{transform:rotate(45deg)}
+  details.alt .inner{padding:0 2px 24px}
+  details.alt .inner>p{color:var(--muted);font-size:14.5px;margin:0 0 14px}
+
+  /* preview */
+  .preview{display:grid;grid-template-columns:1fr;gap:40px;align-items:center;margin-top:48px}
+  @media(min-width:820px){.preview{grid-template-columns:1.05fr .95fr;gap:54px}}
+  .pv h2{margin-bottom:18px}
+  .pv-list{list-style:none;padding:0;margin:24px 0 0;display:flex;flex-direction:column;gap:14px}
+  .pv-list li{display:flex;gap:13px;align-items:flex-start;font-size:15.5px;color:var(--ink)}
+  .pv-list .tick{flex:0 0 8px;width:8px;height:8px;border-radius:50%;background:var(--coral);margin-top:9px}
+  .phone{justify-self:center;width:100%;max-width:320px;background:var(--card);border:1px solid var(--hair);border-radius:26px;padding:13px;transform:rotate(1.2deg)}
+  .phone .bar{display:flex;align-items:center;gap:10px;padding:5px 6px 13px}
+  .phone .bar .mono{font-size:12px;color:var(--muted)}
+  .doc{background:#fff;color:#1a1d24;border:1px solid var(--hair);border-radius:14px;padding:18px}
+  .doc h4{font-family:var(--font-serif);font-weight:400;margin:0 0 9px;font-size:19px;color:#13131A}
+  .doc p{margin:0 0 9px;font-size:13.5px;line-height:1.55}
+  .doc .hl{background:rgba(255,200,87,.55);border-bottom:2px solid var(--honey);border-radius:2px;padding:0 1px}
+  .bubble{margin-top:12px;background:rgba(255,107,74,.1);border-left:3px solid var(--coral);border-radius:0 10px 10px 0;padding:11px 13px}
+  .bubble .who{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px}
+  .bubble .av{width:19px;height:19px;border-radius:50%;background:var(--coral);display:grid;place-items:center;font-size:9px;font-weight:700;color:#fff}
+  .bubble .txt{font-size:13.5px;color:var(--ink)}
+
+  /* the point */
+  .point{text-align:center}
+  .point .eyebrow{margin-bottom:18px}
+  .point h2{max-width:880px;margin:0 auto}
+  .point .lead{margin:20px auto 0;max-width:580px}
+  .point .cta{justify-content:center}
+
+  /* trust */
+  .trust{display:grid;grid-template-columns:1fr;gap:0 56px;margin-top:48px;border-top:1px solid var(--hair)}
+  @media(min-width:760px){.trust{grid-template-columns:1fr 1fr}}
+  .tr{display:grid;grid-template-columns:26px 1fr;gap:16px;padding:26px 0;border-bottom:1px solid var(--hair)}
+  .tr .ic{color:var(--coral);margin-top:1px}.tr .ic svg{width:23px;height:23px}
+  .tr h4{font-weight:600;margin:0 0 7px;font-size:16px;letter-spacing:-.01em}
+  .tr p{margin:0;color:var(--muted);font-size:14.5px}
+
+  /* faq */
+  .faq{display:grid;grid-template-columns:1fr;gap:0 56px;margin-top:44px;border-top:1px solid var(--hair)}
+  @media(min-width:760px){.faq{grid-template-columns:1fr 1fr}}
+  .qa{padding:26px 0;border-bottom:1px solid var(--hair)}
+  .qa h4{font-family:var(--font-serif);font-weight:400;margin:0 0 9px;font-size:20px;letter-spacing:-.01em}
+  .qa p{margin:0;color:var(--muted);font-size:15px}
+  .qa code{font:12.5px var(--font-mono);background:rgba(19,19,26,.05);padding:1px 5px;border-radius:5px;color:var(--ink)}
+
+  /* footer */
+  footer{position:relative;overflow:hidden;padding:88px 0 40px;text-align:center}
+  footer h2{max-width:760px;margin:0 auto}
+  footer .cta{justify-content:center;margin-top:30px}
+  .footbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:64px;padding-top:26px;border-top:1px solid var(--hair);text-align:left;color:var(--muted);font-size:13.5px}
+  .footbar .sp{flex:1}
+  .footbar a{color:var(--muted);text-decoration:none}
+  .footbar a:hover{color:var(--ink)}
+
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);background:var(--ink);color:var(--paper);padding:11px 18px;border-radius:9999px;font-size:14px;font-weight:500;box-shadow:0 12px 30px -8px rgba(19,19,26,.5);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap nav">
+  <a class="brand" href="/">
+    <svg class="mark" width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12.5" fill="#FFC857"/><circle cx="9.6" cy="13" r="6.2" fill="#FF6B4A"/><circle cx="16.4" cy="13" r="6.2" fill="#6E5BFF" style="mix-blend-mode:multiply"/></svg>
+    <span class="mk">Margin</span><span class="by">by Fieldspan</span>
+  </a>
+  <span class="sp"></span>
+  <a class="navlink hideS" href="#how">How it works</a>
+  <a class="navlink hideS" href="#trust">Security</a>
+  <a class="navlink hideS" href="https://github.com/fieldspan-ai/margin" target="_blank" rel="noopener">GitHub</a>
+  <a class="btn primary nav-cta" href="#install">Install the skill<svg class="ar" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></a>
+</div></nav>
+
+<header class="hero">
+  <div class="blobs" aria-hidden="true">
+    <div class="orb" style="width:420px;height:420px;background:var(--coral);top:-200px;right:-140px"></div>
+    <div class="orb" style="width:360px;height:360px;background:var(--honey);bottom:-220px;left:-120px;animation-delay:-6s"></div>
+  </div>
+  <div class="wrap hero-grid">
+  <div class="hero-l">
+    <span class="pill sticker"><span class="live"></span> The review layer for AI output</span>
+    <h1 class="display">Review what your agent makes, <span class="em coral-text">rendered</span>, on your phone.</h1>
+    <p class="lead">Your agent publishes the finished page to a private link. You open it, mark up any line, and it revises — the way you'd scribble in the margin of a printout. No login, no copy-paste, no screenshots.</p>
+    <div class="cta">
+      <a class="btn primary" href="#install">Install the skill<svg class="ar" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></a>
+      <button class="btn secondary" id="demoBtn">Try a live demo</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="n">1 link</div><div class="c">private, start to finish</div></div>
+      <div class="stat"><div class="n">No login</div><div class="c">no account or API key</div></div>
+      <div class="stat"><div class="n">30s</div><div class="c">to install the skill</div></div>
+    </div>
+  </div>
+  <div class="hero-r">
+    <div class="shipcard card sticker">
+      <div class="tlrow"><span class="tl"><i class="c"></i><i class="h"></i><i class="m"></i></span><span class="mono">margin · review log</span></div>
+      <div class="log mono">
+        <div><span class="t">10:02</span>published <span class="hl-coral">v2</span> — “Q3 Plan”</div>
+        <div><span class="t">10:05</span>you commented · <span class="hl-coral">3 open</span></div>
+        <div><span class="t">10:08</span>agent resolved <span class="hl-mint">2</span> · revised</div>
+        <div class="live-row"><span class="live"></span> reviewing on your phone…</div>
+      </div>
+    </div>
+    <span class="tagsticker wobble">your phone ✶</span>
+  </div>
+  </div>
+</header>
+
+<section id="fits"><div class="wrap">
+  <p class="eyebrow">Where this fits</p>
+  <h2 class="display">Your agent runs somewhere <span class="em violet-text">else</span>.</h2>
+  <p class="lead head-lead">More and more, you're not sitting at the machine doing the work. Margin is the piece that keeps you in the loop from wherever you are.</p>
+  <div class="twocards">
+    <div class="fitcard card sticker">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="10" y1="18.5" x2="14" y2="18.5"/></svg></div>
+      <h3>Claude Code on the web</h3>
+      <p>Kick off and steer work from your phone, away from your desk. The agent runs in the cloud — but you still have to actually see what it made.</p>
+    </div>
+    <div class="fitcard card sticker">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="11" rx="1.5"/><line x1="2" y1="20" x2="22" y2="20"/></svg></div>
+      <h3>Remote-controlling your laptop</h3>
+      <p>Your agent runs on the machine at home or the office while you're out. Same problem: the output lives over there, and you're over here.</p>
+    </div>
+  </div>
+  <p class="punch">Either way, there's no good way to <span class="em coral-text">look at</span> a rendered document — and comment on it — from your phone. You squint at raw HTML, or ask for screenshots. <b>Margin is that missing review surface.</b></p>
+</div></section>
+
+<section id="why"><div class="wrap">
+  <p class="eyebrow">What you review</p>
+  <h2 class="display">Rendered work — not <span class="em coral-text">raw</span> files.</h2>
+  <p class="lead head-lead">You shouldn't have to read HTML source or scroll a wall of Markdown to know if it's right. Margin shows your agent's output the way it'll actually look, and you react to that.</p>
+  <div class="fmts">
+    <div class="fmt card sticker">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4"/><path d="m16 8 4 4-4 4"/><path d="m13.5 6-3 12"/></svg></div>
+      <div class="nm">HTML</div>
+      <div class="st ready"><i></i>Ready now</div>
+      <p>Self-contained pages render exactly as published — reports, one-pagers, tables, landing copy.</p>
+    </div>
+    <div class="fmt card sticker">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 15V9l2.5 2.5L12 9v6"/><path d="M17 9v4m0 0 1.6-1.6M17 13l-1.6-1.6"/></svg></div>
+      <div class="nm">Markdown</div>
+      <div class="st ready"><i></i>Ready now</div>
+      <p>Your agent renders Markdown to a clean page first, so you review the formatted result, not the asterisks.</p>
+    </div>
+    <div class="fmt card sticker is-soon">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M12 16v4"/><path d="M8.5 20h7"/></svg></div>
+      <div class="nm">Slides <span class="badge-soon">Soon</span></div>
+      <div class="st soon"><i></i>In the works</div>
+      <p>Decks are even worse to review in raw form. Comment on slides &amp; PowerPoint the same way — landing next.</p>
+    </div>
+  </div>
+</div></section>
+
+<section id="how"><div class="wrap">
+  <p class="eyebrow">How it works</p>
+  <h2 class="display">One simple <span class="em coral-text">loop</span>.</h2>
+  <p class="lead head-lead">You stay in your chat with your agent. Margin is just the part where you look and react.</p>
+  <div class="loop">
+    <div class="lstep"><div class="lno"><i></i>01</div><h3>Your agent publishes</h3><p>It renders the finished work to a private Margin link and hands you the link.</p></div>
+    <div class="lstep"><div class="lno"><i></i>02</div><h3>You comment on your phone</h3><p>Open the link, select any text, and type what you want changed. Your note sticks to that exact spot.</p></div>
+    <div class="lstep"><div class="lno"><i></i>03</div><h3>Your agent revises</h3><p>Say “check.” It reads your comments, updates the same page, and marks them done. Refresh to see the new version.</p></div>
+  </div>
+</div></section>
+
+<section id="install"><div class="wrap">
+  <p class="eyebrow">Get started in 60 seconds</p>
+  <h2 class="display">Set it up <span class="em coral-text">once</span>.</h2>
+  <p class="lead head-lead">Do step one a single time. After that it's just steps two through four, every time you want feedback.</p>
+
+  <div class="steps">
+
+    <div class="step-row">
+      <div class="snum">1</div>
+      <div>
+        <h3>Get the skill — your call</h3>
+        <p>Install it yourself, or just tell your agent to set itself up. Either way it's one paste.</p>
+        <div class="tabs" role="tablist">
+          <button class="tab on" data-tab="self">Install it yourself</button>
+          <button class="tab" data-tab="agent">Have your agent do it</button>
+        </div>
+        <div class="tabpane on" id="tab-self">
+          <span class="tab-note"><i></i>In your terminal · permanent</span>
+          <p>Drops a small skill file into Claude Code — then it's ready in every future session.</p>
+          <div class="code" id="cmdInstall"><span class="cmt"># installs the Margin skill for Claude Code</span>
+mkdir -p ~/.claude/skills/margin &amp;&amp; curl -fsSL __BASE_URL__/skill.md -o ~/.claude/skills/margin/SKILL.md
+<button class="copy" data-copy="#cmdInstall">Copy</button></div>
+          <p class="tiny">Then open a new Claude Code session — the <b>margin</b> skill is ready. <a class="inl" href="__BASE_URL__/skill.md">View the skill file →</a></p>
+        </div>
+        <div class="tabpane" id="tab-agent">
+          <span class="tab-note"><i></i>In your chat · works right now</span>
+          <p>On your phone, or running an agent remotely with no terminal handy? Paste this to your agent — it fetches the instructions and starts using Margin this session.</p>
+          <div class="code" id="cmdAgent"><span class="tok">Set yourself up to let me review your work on my phone: fetch __BASE_URL__/skill.md and follow it. From now on, whenever I ask you to make something I'd want to look at, publish it to Margin and send me the link.</span><button class="copy" data-copy="#cmdAgent">Copy</button></div>
+          <p class="tiny">No install, nothing saved on your machine — handy when you're away from your desk.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-row">
+      <div class="snum">2</div>
+      <div>
+        <h3>Ask your agent to make something</h3>
+        <p>Anything you'd want to eyeball before it's final — a summary, a one-pager, an email, a table. Just mention Margin:</p>
+        <div class="code" id="cmdAsk"><span class="tok">“Make me a one-page summary of the Q3 plan and let me review it in Margin.”</span><button class="copy" data-copy="#cmdAsk">Copy</button></div>
+        <p class="tiny">Your agent renders it and replies with a link. Tap it.</p>
+      </div>
+    </div>
+
+    <div class="step-row">
+      <div class="snum">3</div>
+      <div>
+        <h3>Open the link &amp; comment</h3>
+        <p>On your phone or in a browser: <b>select any text → tap “Comment” → say what you want.</b> Your note anchors to that exact sentence. Leave as many as you like.</p>
+      </div>
+    </div>
+
+    <div class="step-row">
+      <div class="snum">4</div>
+      <div>
+        <h3>Say “check”</h3>
+        <p>Back in your chat, type:</p>
+        <p><span class="say">check</span></p>
+        <p>Your agent reads every comment, revises the page, and marks them resolved. Refresh the same link to see the new version. Repeat until it's right.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <details class="alt">
+    <summary>Want the full prompt spelled out? Paste this instead <span class="chev">+</span></summary>
+    <div class="inner">
+      <p>The complete workflow, written out — paste it into any Claude Code session once. (The skill above is the same thing, made permanent.)</p>
+      <div class="code" id="promptBox" style="max-height:300px;overflow:auto">You can publish HTML for me to review on my phone and get my comments back, using Margin — a hosted review tool at __BASE_URL__. No login or API key is needed; the server gives you a per-document token on first publish.
+
+Whenever I ask you to make something I'd want to look at and give feedback on (a one-pager, report, summary, table, landing copy, etc.):
+
+1. Write a complete, self-contained HTML document (inline CSS; no external scripts — they won't run in the review sandbox). If my content is Markdown, render it to clean HTML first.
+2. Write it to /tmp/margin-doc.html, then publish with jq to avoid quoting issues:
+   jq -n --rawfile html /tmp/margin-doc.html --arg title "SHORT TITLE" '{title:$title, html:$html}' | curl -s -X POST __BASE_URL__/api/docs -H "content-type: application/json" --data-binary @-
+   The response has doc_id, agent_token, and reviewer_url. Save doc_id and agent_token to ./.margin.json.
+3. Give me the reviewer_url as a clickable link; tell me to open it, select text, and comment.
+4. When I say "check", read my comments:
+   curl -s "__BASE_URL__/api/docs/DOC_ID/comments?status=open" -H "authorization: Bearer AGENT_TOKEN"
+5. Revise and re-publish to the SAME doc (keeps the link and comments), then resolve handled comments:
+   jq -n --rawfile html /tmp/margin-doc.html --arg s "what changed" '{html:$html, summary:$s}' | curl -s -X POST __BASE_URL__/api/docs/DOC_ID/publish -H "authorization: Bearer AGENT_TOKEN" -H "content-type: application/json" --data-binary @-
+   curl -s -X POST __BASE_URL__/api/docs/DOC_ID/comments/COMMENT_ID/status -H "authorization: Bearer AGENT_TOKEN" -H "content-type: application/json" -d '{"status":"resolved"}'
+
+Rules: reuse the same doc_id for revisions; keep agent_token private. To start, ask me what I'd like to create.<button class="copy" data-copy="#promptBox">Copy</button></div>
+    </div>
+  </details>
+</div></section>
+
+<section id="preview"><div class="wrap">
+  <p class="eyebrow">What you'll see</p>
+  <div class="preview">
+    <div class="pv">
+      <h2 class="display">Comment like you'd scribble in the <span class="em coral-text">margin</span>.</h2>
+      <p class="lead">No accounts, no app to download. The link opens in your phone's browser and works exactly like you'd expect.</p>
+      <ul class="pv-list">
+        <li><span class="tick"></span><span>Select any text — your comment sticks to that exact spot.</span></li>
+        <li><span class="tick"></span><span>Your agent sees the quote and your note, so it knows precisely what you mean.</span></li>
+        <li><span class="tick"></span><span>Revisions land on the same link; addressed notes get marked resolved.</span></li>
+        <li><span class="tick"></span><span>The link is private and unguessable — only people you send it to can open it.</span></li>
+      </ul>
+    </div>
+    <div class="phone card sticker">
+      <div class="bar"><span class="tl"><i class="c"></i><i class="h"></i><i class="m"></i></span><span class="mono">margin · v1</span></div>
+      <div class="doc">
+        <h4>Q3 Plan — Summary</h4>
+        <p>We'll focus on three bets this quarter: onboarding, retention, and <span class="hl">expanding into the EU market by August</span>.</p>
+        <p>Headcount stays flat while we prove the funnel.</p>
+        <div class="bubble">
+          <div class="who"><span class="av">YOU</span> You · just now</div>
+          <div class="txt">August is too aggressive — can we say Q4 instead?</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<section class="point">
+  <div class="blobs" aria-hidden="true">
+    <div class="orb" style="width:340px;height:340px;background:var(--honey);top:-160px;left:-80px"></div>
+    <div class="orb" style="width:320px;height:320px;background:var(--coral);bottom:-180px;right:-60px;animation-delay:-6s"></div>
+  </div>
+  <div class="wrap">
+  <p class="eyebrow">The point</p>
+  <h2 class="display">Stop pasting screenshots <span class="em coral-text">back</span> to your agent.</h2>
+  <p class="lead">Margin closes the loop: your agent renders the work, you react in place, it revises. One private link, start to finish.</p>
+  <div class="cta">
+    <a class="btn primary" href="#install">Install the skill<svg class="ar" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></a>
+    <button class="btn secondary" id="demoBtn2">Try a live demo</button>
+  </div>
+  </div>
+</section>
+
+<section id="trust"><div class="wrap">
+  <p class="eyebrow">Trust &amp; security</p>
+  <h2 class="display">Private by <span class="em violet-text">default</span>.</h2>
+  <p class="lead head-lead">No accounts, no tracking, no shared secrets. Every document is reachable only through its own link — and the whole thing is open source, so you can run your own instance.</p>
+  <div class="trust">
+    <div class="tr">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15 15 9"/><path d="M11 7l1-1a4 4 0 0 1 6 6l-1 1"/><path d="M13 17l-1 1a4 4 0 0 1-6-6l1-1"/></svg></div>
+      <div><h4>Private, unguessable links</h4><p>Each document gets a long random link scoped to that one page. A leaked link only ever exposes its own document — never your others.</p></div>
+    </div>
+    <div class="tr">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg></div>
+      <div><h4>No account, no tracking</h4><p>No login, email, or API key. The agent self-provisions a per-document token the first time it publishes — there's nothing to sign up for.</p></div>
+    </div>
+    <div class="tr">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="14" r="3.5"/><path d="m10.5 11.5 7.5-7.5"/><path d="m16 6 2 2"/><path d="m13.5 8.5 2 2"/></svg></div>
+      <div><h4>Document-scoped tokens</h4><p>Access rides in an HMAC-signed capability token bound to one document and role. The agent keeps a private token; you get a reviewer link. Links can be set to expire.</p></div>
+    </div>
+    <div class="tr">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+      <div><h4>Your token stays out of the page</h4><p>On open, your reviewer token moves into an httpOnly cookie and is stripped from the URL — so it's never in browser history or readable by page scripts.</p></div>
+    </div>
+    <div class="tr">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.2-2.9 7.4-7 9-4.1-1.6-7-4.8-7-9V6z"/><path d="m9 12 2 2 4-4"/></svg></div>
+      <div><h4>Rendered with scripts off</h4><p>Documents render in a sandbox with JavaScript disabled behind a strict content-security policy. A page can't run code, set cookies, or phone home.</p></div>
+    </div>
+    <div class="tr">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/></svg></div>
+      <div><h4>Stored over HTTPS · open source</h4><p>Documents live in the instance's database (Vercel KV / Upstash Redis) and travel over HTTPS. Margin is MIT-licensed — <a class="inl" href="https://github.com/fieldspan-ai/margin" target="_blank" rel="noopener">self-host it</a> and own the data end to end.</p></div>
+    </div>
+  </div>
+</div></section>
+
+<section id="faq"><div class="wrap">
+  <p class="eyebrow">Good to know</p>
+  <h2 class="display">The fine print, <span class="em coral-text">briefly</span>.</h2>
+  <div class="faq">
+    <div class="qa"><h4>Do I need an account?</h4><p>No. No login, no API key, no sign-up. Your agent gets a private token the first time it publishes, and that's it.</p></div>
+    <div class="qa"><h4>What can it review?</h4><p>Rendered HTML and Markdown today — reports, one-pagers, emails, tables, landing copy. Slides and PowerPoint are coming soon.</p></div>
+    <div class="qa"><h4>Is my link private?</h4><p>Yes. Each document gets an unguessable link scoped to just that page. Only people you share it with can open it.</p></div>
+    <div class="qa"><h4>Which tools does it work with?</h4><p>Claude Code today — it's a downloadable skill. Any agent that can run <code>curl</code> can use the same HTTP API.</p></div>
+  </div>
+</div></section>
+
+<footer id="contact">
+  <div class="blobs" aria-hidden="true">
+    <div class="orb" style="width:340px;height:340px;background:var(--coral);top:-120px;left:-60px"></div>
+    <div class="orb" style="width:300px;height:300px;background:var(--violet);top:-80px;right:-40px;opacity:.12;animation-delay:-6s"></div>
+  </div>
+  <div class="wrap">
+  <p class="eyebrow">Close the loop</p>
+  <h2 class="display">Review your agent's work from <span class="em coral-text">anywhere</span>.</h2>
+  <div class="cta">
+    <a class="btn primary" href="#install">Install the skill<svg class="ar" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></a>
+    <button class="btn secondary" id="demoBtn3">Try a live demo</button>
+  </div>
+  <div class="footbar">
+    <a class="brand" href="/" style="gap:9px">
+      <svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12.5" fill="#FFC857"/><circle cx="9.6" cy="13" r="6.2" fill="#FF6B4A"/><circle cx="16.4" cy="13" r="6.2" fill="#6E5BFF" style="mix-blend-mode:multiply"/></svg>
+      <span style="font-weight:600;color:var(--ink)">Margin</span>
+    </a>
+    <span class="sp"></span>
+    <a href="#how">How it works</a>
+    <a href="#trust">Security</a>
+    <a href="https://github.com/fieldspan-ai/margin" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://fieldspan.ai" target="_blank" rel="noopener">fieldspan.ai</a>
+  </div>
+  </div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script nonce="__CSP_NONCE__">
+(function(){
+  "use strict";
+  var toastEl=document.getElementById('toast'),toastT=null;
+  function toast(m){toastEl.textContent=m;toastEl.classList.add('on');clearTimeout(toastT);toastT=setTimeout(function(){toastEl.classList.remove('on');},1800);}
+
+  // install decision: tab toggle (yourself / your agent)
+  document.querySelectorAll('.tab').forEach(function(t){
+    t.addEventListener('click',function(){
+      var name=t.getAttribute('data-tab');
+      var group=t.closest('.step-row')||document;
+      group.querySelectorAll('.tab').forEach(function(x){x.classList.toggle('on',x===t);});
+      group.querySelectorAll('.tabpane').forEach(function(p){p.classList.toggle('on',p.id==='tab-'+name);});
+    });
+  });
+
+  function copyText(el){var clone=el.cloneNode(true);var b=clone.querySelector('.copy');if(b)b.remove();return clone.textContent.replace(/ /g,' ').trim();}
+  function doCopy(text){
+    if(navigator.clipboard&&navigator.clipboard.writeText){return navigator.clipboard.writeText(text);}
+    return new Promise(function(res,rej){try{var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();document.execCommand('copy');document.body.removeChild(ta);res();}catch(e){rej(e);}});
+  }
+  document.querySelectorAll('.copy').forEach(function(btn){
+    btn.addEventListener('click',function(e){
+      e.preventDefault();
+      var target=document.querySelector(btn.getAttribute('data-copy'));if(!target)return;
+      doCopy(copyText(target)).then(function(){
+        var old=btn.textContent;btn.textContent='Copied ✓';btn.classList.add('ok');toast('Copied to clipboard');
+        setTimeout(function(){btn.textContent=old;btn.classList.remove('ok');},1500);
+      }).catch(function(){toast('Press ⌘/Ctrl-C to copy');});
+    });
+  });
+
+  var DEMO_HTML='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#13131A;max-width:640px;margin:0 auto;padding:8px}h1{font-size:24px;margin:0 0 4px}.tag{color:#6E6A5E;font-size:13px;margin:0 0 18px}h2{font-size:17px;margin:22px 0 6px}p{margin:0 0 10px}ul{margin:0 0 10px;padding-left:20px}li{margin:3px 0}.note{background:rgba(255,107,74,.1);border-left:3px solid #FF6B4A;padding:10px 12px;border-radius:0 6px 6px 0;color:#8a3a22;font-size:14px}</style></head><body><h1>Q3 Plan — Summary</h1><p class="tag">A sample document, just for this demo. Try commenting on it!</p><h2>Our three bets</h2><p>This quarter we focus on <b>onboarding</b>, <b>retention</b>, and <b>expanding into the EU market by August</b>. Headcount stays flat while we prove the funnel works.</p><h2>How to try Margin</h2><ul><li>Select any sentence above with your finger or mouse.</li><li>Tap the <b>Comment</b> button that pops up.</li><li>Type what you would change, then post it.</li></ul><div class="note">In a real session, your agent reads these comments and revises this page for you — then you just refresh.</div></body></html>';
+
+  function runDemo(btn){
+    var label=btn.textContent;btn.textContent='Creating…';btn.disabled=true;
+    fetch('/api/docs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({title:'Margin demo — try commenting',html:DEMO_HTML})})
+      .then(function(r){if(!r.ok)throw new Error(r.status===429?'rate':'err');return r.json();})
+      .then(function(d){
+        btn.textContent='Opening…';
+        var w=window.open(d.reviewer_url,'_blank');
+        if(!w){location.href=d.reviewer_url;}
+        toast('Demo created — select text and comment');
+        setTimeout(function(){btn.textContent=label;btn.disabled=false;},1200);
+      })
+      .catch(function(e){toast(e&&e.message==='rate'?'Too many demos from here — try again later':'Couldn’t reach the server');btn.textContent=label;btn.disabled=false;});
+  }
+  ['demoBtn','demoBtn2','demoBtn3'].forEach(function(id){var b=document.getElementById(id);if(b)b.addEventListener('click',function(){runDemo(b);});});
+})();
+</script>
+</body>
+</html>

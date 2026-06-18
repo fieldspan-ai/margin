@@ -1,0 +1,9 @@
+node_modules/
+.env
+data/
+.vercel
+.gstack/
+*.log
+.DS_Store
+.env*.local
+.margin.json

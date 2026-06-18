@@ -1,0 +1,29 @@
+{
+  "name": "margin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent-native HTML review — an agent publishes generated HTML to a link, you review and comment on your phone, and the comments feed back to the agent.",
+  "type": "module",
+  "bin": {
+    "margin-mcp": "mcp/margin-mcp.js"
+  },
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node server/server.js",
+    "dev:kv": "STORE=memory node server/server.js",
+    "mcp": "node mcp/margin-mcp.js",
+    "seed": "node server/seed.js",
+    "tunnel": "bash scripts/tunnel.sh",
+    "mint": "node scripts/mint-token.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@upstash/redis": "^1.34.0",
+    "zod": "^4.0.0"
+  },
+  "license": "MIT"
+}

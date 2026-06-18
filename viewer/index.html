@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>Margin</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<style>
+  :root{
+    --bg:#0f1115;--panel:#161922;--panel-2:#1d212c;--line:#2a2f3d;
+    --ink:#e8eaf0;--ink-dim:#9aa3b2;--ink-faint:#6b7382;
+    --human:#34d3b5;--human-ink:#063a32;--agent:#8b7bff;--agent-2:#b9aaff;
+    --accent:#ffd166;--shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+  button{font-family:inherit;cursor:pointer}
+
+  .topbar{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#1a1e29,#161922);flex:0 0 auto}
+  .logo{display:flex;align-items:center;gap:8px;font-weight:700}
+  .logo .dot{width:20px;height:20px;border-radius:6px;background:linear-gradient(135deg,var(--agent),var(--human));display:grid;place-items:center;color:#0b0d12;font-weight:900;font-size:12px}
+  .title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+  .vbadge{font-size:11px;color:var(--agent-2);background:rgba(139,123,255,.12);border:1px solid rgba(139,123,255,.3);padding:2px 8px;border-radius:20px;cursor:pointer}
+  .ids{display:flex;gap:6px}
+  .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel-2);padding:3px 8px 3px 3px;border-radius:30px;font-size:12px;color:var(--ink-dim);cursor:pointer}
+  .ava{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;color:#06120f}
+  .ava.a{background:linear-gradient(135deg,var(--agent-2),var(--agent));color:#0c0a23}
+  .ava.h{background:linear-gradient(135deg,#5ff0d2,#34d3b5)}
+
+  .stage{flex:1;display:grid;grid-template-columns:1fr 360px;min-height:0}
+  .docwrap{background:#fff;overflow:hidden;position:relative}
+  iframe#doc{width:100%;height:100%;border:0;background:#fff}
+  .rail{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  .railhead{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+  .railhead .t{font-weight:650}
+  .count{font-size:11px;color:var(--ink-faint);background:var(--panel-2);border:1px solid var(--line);padding:1px 7px;border-radius:20px}
+  .railbody{padding:12px;overflow:auto;display:flex;flex-direction:column;gap:10px}
+  .empty{color:var(--ink-faint);font-size:13px;line-height:1.6;text-align:center;padding:32px 16px}
+
+  .card{border:1px solid var(--line);background:var(--panel-2);border-radius:12px;padding:11px}
+  .card.resolved{opacity:.6}
+  .card.pulse{box-shadow:0 0 0 2px var(--agent)}
+  .card.orphan{border-style:dashed;border-color:#5b4a2a}
+  .meta{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .miniava{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:800;color:#06120f}
+  .miniava.a{background:linear-gradient(135deg,var(--agent-2),var(--agent));color:#0c0a23}
+  .miniava.h{background:linear-gradient(135deg,#5ff0d2,#34d3b5)}
+  .who{font-size:12px;font-weight:600}
+  .who .tag{font-size:10px;font-weight:700;padding:1px 5px;border-radius:6px;margin-left:5px}
+  .tag.a{background:rgba(139,123,255,.18);color:var(--agent-2)}
+  .tag.h{background:rgba(52,211,181,.16);color:#5ff0d2}
+  .when{margin-left:auto;font-size:11px;color:var(--ink-faint)}
+  .qline{font-size:12px;color:var(--ink-dim);border-left:2px solid var(--accent);padding-left:8px;margin:2px 0 7px}
+  .body{font-size:13.5px;color:var(--ink);white-space:pre-wrap}
+  .status{font-size:10px;font-weight:700;padding:1px 7px;border-radius:20px}
+  .status.open{background:rgba(255,209,102,.14);color:var(--accent)}
+  .status.resolved{background:rgba(52,211,181,.14);color:#5ff0d2}
+  .replies{margin:8px 0 0;padding-left:10px;border-left:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+  .cardacts{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center}
+  .linkbtn{background:transparent;border:0;color:var(--ink-faint);font-size:12px;padding:0}
+  .linkbtn:hover{color:var(--ink)}
+  textarea{width:100%;background:#10131b;border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:8px;font:13px/1.4 inherit;resize:vertical;min-height:46px}
+  textarea:focus{outline:0;border-color:var(--agent)}
+  .row{display:flex;gap:8px;margin-top:8px}
+  .btn{border:0;border-radius:9px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;transition:transform .06s ease,filter .12s ease}
+  .btn:active{transform:scale(.97)}
+  .btn.primary{background:var(--human);color:var(--human-ink)}
+  .btn.primary:hover{filter:brightness(1.05)}
+  .btn.mut{background:var(--panel-2);color:var(--ink-dim);border:1px solid var(--line)}
+  .linkbtn.danger{color:#e8896f}
+  .linkbtn.danger:hover{color:#ff9b7d}
+  .newcard{border:1px dashed var(--agent);background:rgba(139,123,255,.06);border-radius:12px;padding:11px}
+  .newcard .q{font-size:12px;color:var(--ink-dim);border-left:2px solid var(--accent);padding-left:8px;margin-bottom:8px}
+  .replybox{display:none;margin-top:8px}.replybox.on{display:block}
+
+  /* inline "Comment" action that pops up next to the highlighted text */
+  #selbtn{position:fixed;z-index:56;display:none;align-items:center;gap:6px;background:var(--human);color:var(--human-ink);font:700 13px/1 inherit;padding:9px 14px;border:0;border-radius:20px;box-shadow:0 6px 22px rgba(0,0,0,.4);cursor:pointer;white-space:nowrap;-webkit-user-select:none;user-select:none}
+  #selbtn.on{display:inline-flex;animation:selpop .14s ease}
+  #selbtn:active{transform:scale(.95)}
+  #selbtn .ico{font-size:13px;line-height:1}
+  @keyframes selpop{from{opacity:0;transform:translateY(5px) scale(.96)}to{opacity:1;transform:none}}
+
+  /* doc load states (no more frozen "Loading…" / swallowed errors) */
+  .docmsg{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);color:var(--ink);z-index:5;padding:24px;text-align:center}
+  .docmsg.on{display:flex}
+  .docmsg h3{margin:0 0 6px}
+  .docmsg p{color:var(--ink-dim);margin:0 0 14px;max-width:320px}
+  .docmsg .btn{text-decoration:none;display:inline-block}
+
+  .pop{position:fixed;z-index:60;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:12px;width:280px;display:none}
+  .pop.on{display:block}
+  .vrow{display:flex;gap:8px;padding:7px 0;border-top:1px solid var(--line)}
+  .vrow:first-of-type{border-top:0}
+  .vrow .vv{font-size:11px;color:var(--agent-2);font-weight:700;min-width:24px}
+  .vrow small{display:block;color:var(--ink-faint);font-size:11px}
+
+  .gate{position:fixed;inset:0;background:rgba(8,10,15,.92);z-index:80;display:none;align-items:center;justify-content:center;padding:24px}
+  .gate.on{display:flex}
+  .gate .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;max-width:420px;width:100%}
+  .gate h3{margin:0 0 6px}.gate p{color:var(--ink-dim);font-size:13px;margin:0 0 12px}
+  .gate input{width:100%;background:#10131b;border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:9px;font:14px inherit}
+
+  .toast{position:fixed;bottom:calc(16px + var(--kb,0px));left:50%;transform:translateX(-50%) translateY(8px);display:flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);padding:8px 10px 8px 14px;border-radius:20px;font-size:12.5px;z-index:70;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;box-shadow:var(--shadow)}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+  .toast .toastundo{background:transparent;border:0;color:var(--accent);font-weight:700;font-size:12.5px;cursor:pointer;padding:3px 8px;border-radius:14px}
+  .toast .toastundo:active{background:rgba(255,209,102,.14)}
+  .drawerhandle{display:none}
+
+  /* docs index (front door at /) */
+  .logo{cursor:pointer}
+  #indexView{display:none;flex:1;min-height:0;overflow:auto}
+  body.indexing .stage{display:none}
+  body.indexing #indexView{display:block}
+  .idxwrap{max-width:680px;margin:0 auto;padding:18px 14px 48px}
+  .idxhead{display:flex;align-items:center;gap:8px;font-weight:650;margin:6px 2px 14px;font-size:15px}
+  .doccard{display:block;text-decoration:none;color:inherit;border:1px solid var(--line);background:var(--panel-2);border-radius:12px;padding:13px 14px;margin-bottom:10px;transition:border-color .15s,transform .05s}
+  .doccard:hover{border-color:var(--agent)}
+  .doccard:active{transform:scale(.995)}
+  .doccard .dt{font-weight:600;font-size:15px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .doccard .dm{font-size:12px;color:var(--ink-faint)}
+  .doccard .ob{color:var(--accent)}
+  .idxempty{text-align:center;color:var(--ink-faint);padding:48px 18px}
+  .idxempty h3{color:var(--ink-dim);margin:0 0 6px}
+  .idxloading{color:var(--ink-faint);padding:28px;text-align:center}
+
+  /* tap-outside backdrop for the mobile drawer */
+  #scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:39;opacity:0;transition:opacity .2s}
+
+  /* mobile */
+  @media(max-width:760px){
+    .stage{grid-template-columns:1fr}
+    .ids .chip .nm{display:none}
+    /* --kb (set from JS via the VisualViewport API) lifts the drawer above the
+       soft keyboard and shrinks it to fit, so the composer stays visible. */
+    .rail{position:fixed;left:0;right:0;bottom:var(--kb,0px);z-index:40;max-height:min(80vh,calc(100vh - var(--kb,0px) - 12px));border-left:0;border-top:1px solid var(--line);border-radius:18px 18px 0 0;transform:translateY(calc(100% - 50px));transition:transform .28s ease,bottom .2s ease;box-shadow:0 -14px 40px rgba(0,0,0,.45)}
+    body.drawer-open .rail{transform:translateY(0)}
+    body.drawer-open #scrim{display:block;opacity:1}
+    .drawerhandle{display:flex;align-items:center;justify-content:center;height:50px;position:relative;cursor:pointer;color:var(--ink-dim);font-size:12.5px}
+    .drawerhandle:before{content:"";position:absolute;top:8px;width:38px;height:4px;border-radius:4px;background:var(--ink-faint)}
+    /* a real close affordance, not just the grab handle */
+    .drawerhandle:after{content:"✕";position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:16px;color:var(--ink-faint);padding:6px}
+    /* finger-friendly tap targets */
+    .btn{padding:11px 16px;min-height:44px;font-size:14px}
+    .linkbtn{padding:8px 6px;font-size:13px}
+    .railbody{padding:12px 12px 20px}
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="logo"><span class="dot">M</span></div>
+    <span class="title" id="title">Loading…</span>
+    <span class="vbadge" id="vbadge" title="Version history">v–</span>
+    <div class="ids" id="ids"></div>
+  </div>
+
+  <div class="stage">
+    <div class="docwrap">
+      <iframe id="doc" sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe>
+      <div class="docmsg" id="docMsg"></div>
+    </div>
+    <div class="rail" id="rail">
+      <div class="drawerhandle" id="drawerHandle">Comments</div>
+      <div class="railhead"><span class="t">Threads</span><span class="count" id="count">0 open</span></div>
+      <div class="railbody" id="railBody"></div>
+    </div>
+  </div>
+
+  <div id="indexView"></div>
+
+  <div id="scrim"></div>
+  <button id="selbtn"><span class="ico">💬</span>Comment</button>
+  <div class="pop" id="popVer"><h4 style="margin:0 0 8px;font-size:13px">Version history</h4><div id="verList"></div></div>
+  <div class="pop" id="popIds" style="width:300px"></div>
+
+  <div class="gate" id="gate"><div class="box">
+    <h3>Reviewer access</h3>
+    <p>Paste your reviewer token to open this document. (Normally it rides in the magic link, so you won't see this.)</p>
+    <input id="tokenInput" placeholder="reviewer token" />
+    <div class="row"><button class="btn primary" id="tokenGo">Open</button></div>
+  </div></div>
+
+  <div class="toast" id="toast"></div>
+
+<script nonce="__CSP_NONCE__">
+(function(){
+  "use strict";
+  var $=function(s){return document.querySelector(s)};
+  var api='/api';
+
+  // ---- bootstrap: docId only ----
+  // Auth rides in an httpOnly cookie the server sets from the magic link's
+  // ?token, so the token is never in page JS or localStorage. Same-origin
+  // requests send the cookie automatically; a 401 just shows the gate.
+  var path=location.pathname.split('/').filter(Boolean);
+  var docId=(path[0]==='d'&&path[1])?decodeURIComponent(path[1]):(new URLSearchParams(location.search).get('doc')||'');
+  try{localStorage.removeItem('margin_token');}catch(e){} // purge any token left by pre-cookie builds
+
+  var state={doc:null, midMap:{}, pending:null, candidate:null, draft:''};
+  var selPoll=null; // mobile: poll the iframe selection (selectionchange is unreliable there)
+
+  function headers(){return {'Content-Type':'application/json'};}
+  var toastTimer=null;
+  function toast(m,opts){
+    var t=$('#toast');clearTimeout(toastTimer);t.innerHTML='';
+    var span=document.createElement('span');span.textContent=m;t.appendChild(span);
+    var dur=1600;
+    if(opts&&opts.action){
+      var b=document.createElement('button');b.className='toastundo';b.textContent=opts.action;
+      b.onclick=function(){clearTimeout(toastTimer);t.classList.remove('on');try{opts.onAction&&opts.onAction();}catch(e){}};
+      t.appendChild(b);dur=opts.duration||6000;
+    }
+    t.classList.add('on');toastTimer=setTimeout(function(){t.classList.remove('on')},dur);
+  }
+  function ago(ts){var m=Math.round((Date.now()-ts)/60000);if(m<1)return'just now';if(m<60)return m+'m ago';var h=Math.round(m/60);if(h<24)return h+'h ago';return Math.round(h/24)+'d ago';}
+  function esc(s){return (s||'').replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]});}
+
+  // ---- anchoring: block ids are assigned by the server (data-block-id) ----
+  // The client just indexes them and trusts the server-resolved anchor on each
+  // comment (c.resolved.block_id / .soft / null) — no client-side hashing.
+  function indexBlocks(idoc){
+    state.midMap={};
+    [].slice.call(idoc.querySelectorAll('[data-block-id]')).forEach(function(el){
+      state.midMap[el.getAttribute('data-block-id')]=el;
+    });
+  }
+
+  function injectDocStyles(idoc){
+    var st=idoc.createElement('style');
+    st.textContent='mark.margin-hl{background:rgba(255,209,102,.5);border-bottom:2px solid #e6ad19;border-radius:3px;cursor:pointer}'+
+      '[data-block-id].margin-commented{background:rgba(255,209,102,.14);box-shadow:-3px 0 0 #e6ad19;border-radius:2px}'+
+      // responsive containment: keep a 1200px layout from horizontal-scrolling at 390px
+      'html,body{max-width:100%}'+
+      'body{margin:0;padding:16px 14px;cursor:text;overflow-x:hidden;word-wrap:break-word;overflow-wrap:break-word;-webkit-text-size-adjust:100%}'+
+      'img,svg,video,canvas,iframe{max-width:100%!important;height:auto}'+
+      'table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}'+
+      'pre{max-width:100%;overflow-x:auto;white-space:pre-wrap;word-break:break-word}'+
+      'code{word-break:break-word}';
+    idoc.head.appendChild(st);
+  }
+
+  function highlightComments(idoc){
+    // clear old
+    [].slice.call(idoc.querySelectorAll('mark.margin-hl')).forEach(function(m){var p=m.parentNode;p.replaceChild(idoc.createTextNode(m.textContent),m);p.normalize&&p.normalize();});
+    [].slice.call(idoc.querySelectorAll('.margin-commented')).forEach(function(e){e.classList.remove('margin-commented');});
+    var open=(state.doc.comments||[]).filter(function(c){return c.status==='open';});
+    open.forEach(function(c){
+      var el=state.midMap[c.resolved&&c.resolved.block_id]; if(!el) return; // orphaned
+      var q=c.anchor&&c.anchor.quote;
+      var done=q?tryHighlight(idoc,el,q,c.id):false;
+      if(!done) el.classList.add('margin-commented');
+    });
+  }
+  function tryHighlight(idoc,el,quote,cid){
+    var walker=idoc.createTreeWalker(el,NodeFilter.SHOW_TEXT,null);
+    var node;
+    while((node=walker.nextNode())){
+      var idx=node.nodeValue.indexOf(quote);
+      if(idx>=0){
+        var range=idoc.createRange();
+        range.setStart(node,idx); range.setEnd(node,idx+quote.length);
+        var mark=idoc.createElement('mark'); mark.className='margin-hl'; mark.setAttribute('data-cid',cid);
+        try{range.surroundContents(mark);}catch(e){return false;}
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // ---- render document ----
+  function renderDoc(){
+    var iframe=$('#doc');
+    iframe.onload=function(){
+      var idoc=iframe.contentDocument;
+      if(!idoc||!idoc.body){return;}
+      injectDocStyles(idoc);
+      indexBlocks(idoc);
+      highlightComments(idoc);
+      wireDocEvents(idoc);
+    };
+    iframe.srcdoc=state.doc.html||'<p style="font-family:sans-serif;color:#888;padding:24px">Empty document.</p>';
+  }
+
+  function wireDocEvents(idoc){
+    var iwin=$('#doc').contentWindow;
+    // Snapshot the selection into state.candidate on every change, so moving focus
+    // to the comment textarea (which collapses the selection) doesn't lose it.
+    function snapshot(){
+      var sel=iwin.getSelection();
+      if(!sel||sel.isCollapsed){ if(!state.pending) hideSelbtn(); return; }
+      var text=sel.toString().replace(/\s+/g,' ').trim();
+      if(text.length<2){ hideSelbtn(); return; }
+      var range=sel.getRangeAt(0);
+      var node=range.commonAncestorContainer;
+      var el=(node.nodeType===3?node.parentElement:node);
+      el=el&&el.closest('[data-block-id]');
+      if(!el){ hideSelbtn(); return; }
+      state.candidate={block_id:el.getAttribute('data-block-id'),block_text:el.textContent.trim().slice(0,4000),quote:text,block_type:el.tagName.toLowerCase()};
+      showSelbtn(range);
+    }
+    idoc.addEventListener('selectionchange',snapshot);
+    idoc.addEventListener('mouseup',function(){setTimeout(snapshot,1)});
+    idoc.addEventListener('touchend',function(){setTimeout(snapshot,40)});
+    // Mobile Safari fires selectionchange unreliably for selections *inside* an
+    // iframe, and the user keeps dragging the selection handles after touchend —
+    // so poll the selection. This is what actually surfaces the comment bar on a
+    // phone. Cheap (3x/s) and idempotent; cleared + reset on every re-render.
+    if(selPoll)clearInterval(selPoll);
+    selPoll=setInterval(snapshot,300);
+    idoc.addEventListener('click',function(e){
+      var m=e.target.closest&&e.target.closest('mark.margin-hl,[data-block-id].margin-commented');
+      if(m){var cid=m.getAttribute('data-cid');if(cid)focusCard(cid);else{var bid=m.getAttribute('data-block-id');var c=(state.doc.comments||[]).find(function(x){return x.resolved&&x.resolved.block_id===bid&&x.status==='open'});if(c)focusCard(c.id);}}
+    });
+  }
+  // Float the "Comment" pill next to the highlighted text. The selection lives in
+  // the iframe, so translate its rect into the parent viewport (iframe offset +
+  // selection rect). Place it just below the selection, flipping above when near
+  // the bottom, and clamp to the viewport.
+  function showSelbtn(range){
+    var r; try{ r=range.getBoundingClientRect(); }catch(e){ return hideSelbtn(); }
+    if(!r||(!r.width&&!r.height)) return hideSelbtn();
+    var btn=$('#selbtn'); btn.classList.add('on');
+    var ifr=$('#doc').getBoundingClientRect();
+    var bw=btn.offsetWidth||100, bh=btn.offsetHeight||34;
+    var cx=ifr.left+r.left+r.width/2;
+    var below=ifr.top+r.bottom+8, above=ifr.top+r.top-bh-8;
+    var top=(below+bh < window.innerHeight-64) ? below : Math.max(56,above);
+    var left=Math.max(8, Math.min(cx-bw/2, window.innerWidth-bw-8));
+    btn.style.left=left+'px'; btn.style.top=top+'px';
+  }
+  function hideSelbtn(){ $('#selbtn').classList.remove('on'); }
+
+  // Use pointerdown + preventDefault so we act BEFORE the tap collapses the
+  // selection (which would otherwise hide the button before a click lands).
+  $('#selbtn').addEventListener('pointerdown',function(e){
+    e.preventDefault();
+    if(!state.candidate)return;
+    state.pending=state.candidate; state.draft=''; hideSelbtn();
+    openDrawer(); renderThreads();
+    var ta=$('#newText'); if(ta){ ta.focus(); try{ta.scrollIntoView({block:'center'});}catch(e){} }
+    try{$('#doc').contentWindow.getSelection().removeAllRanges();}catch(e){}
+  });
+  // Keep it glued to the selection while the doc scrolls.
+  window.addEventListener('scroll',function(){ if($('#selbtn').classList.contains('on')&&!state.pending){var s=$('#doc').contentWindow.getSelection();if(s&&!s.isCollapsed){try{showSelbtn(s.getRangeAt(0));}catch(e){}}} },true);
+
+  // ---- identity + version ui ----
+  function renderIds(){
+    var d=state.doc; var owner=d.owner||{name:'agent',identity:'agent'};
+    $('#ids').innerHTML=
+      '<span class="chip" id="chipA"><span class="ava a">✦</span><span class="nm">'+esc(owner.name)+'</span></span>'+
+      '<span class="chip" id="chipH"><span class="ava h">YOU</span><span class="nm">reviewer</span></span>';
+    $('#chipA').onclick=function(e){showIds(e.currentTarget)};
+    $('#chipH').onclick=function(e){showIds(e.currentTarget)};
+    $('#title').textContent=d.title||d.id;
+    $('#vbadge').textContent='v'+d.version;
+  }
+  function showIds(anchor){
+    var d=state.doc, owner=d.owner||{};
+    $('#popIds').innerHTML='<h4 style="margin:0 0 8px;font-size:13px">Identities</h4>'+
+      '<div style="display:flex;gap:9px;padding:7px 0"><span class="ava a" style="width:28px;height:28px">✦</span><div><b>'+esc(owner.name||'agent')+'</b> — agent · owner<br><small style="color:var(--ink-faint)">Owns this doc as a session identity, not a person\'s account.</small>'+(owner.session_id?'<br><span style="font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--agent-2)">session: '+esc(owner.session_id)+'</span>':'')+'</div></div>'+
+      '<div style="display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line)"><span class="ava h" style="width:28px;height:28px">YOU</span><div><b>You</b> — reviewer<br><small style="color:var(--ink-faint)">Joined from a mobile link. You comment; the agent writes.</small></div></div>';
+    popAt($('#popIds'),anchor);
+  }
+  $('#vbadge').addEventListener('click',function(e){
+    var d=state.doc; if(!d)return;
+    $('#verList').innerHTML=(d.versions||[]).slice().reverse().map(function(v){
+      return '<div class="vrow"><span class="vv">v'+v.v+'</span><div>'+esc(v.summary||'')+'<small>'+esc((v.author&&v.author.name)||'agent')+' · '+ago(v.createdAt)+'</small></div></div>';
+    }).join('');
+    popAt($('#popVer'),e.currentTarget);
+  });
+  function popAt(p,anchor){
+    closePops(); p.classList.add('on');
+    var r=anchor.getBoundingClientRect();
+    p.style.top=(r.bottom+8)+'px';
+    p.style.left=Math.max(8,Math.min(r.left,window.innerWidth-p.offsetWidth-8))+'px';
+  }
+  function closePops(){[].slice.call(document.querySelectorAll('.pop')).forEach(function(p){p.classList.remove('on')});}
+  document.addEventListener('click',function(e){if(!e.target.closest('.pop')&&!e.target.closest('#vbadge')&&!e.target.closest('.chip'))closePops();});
+
+  // ---- threads ----
+  function authorBits(a){a=a||{};var agent=a.identity==='agent';return{cls:agent?'a':'h',tag:agent?'agent':'you',ini:agent?'✦':'YOU',name:a.name||'?'};}
+  function renderThreads(){
+    var cs=state.doc.comments||[];
+    function hadAnchor(c){return !!(c.anchor&&(c.anchor.block_id||c.anchor.block_mid||c.anchor.block_text));}
+    function isOrphan(c){return hadAnchor(c)&&!(c.resolved&&c.resolved.block_id);}
+    var open=cs.filter(function(c){return c.status==='open'&&!isOrphan(c)});
+    var orphan=cs.filter(function(c){return c.status==='open'&&isOrphan(c)});
+    var resolved=cs.filter(function(c){return c.status==='resolved'});
+    $('#count').textContent=cs.filter(function(c){return c.status==='open'}).length+' open';
+    var html='';
+    if(state.pending){
+      html+='<div class="newcard"><div class="q">Commenting on: “'+esc(state.pending.quote)+'”</div>'+
+        '<textarea id="newText" placeholder="Leave a comment for the agent…"></textarea>'+
+        '<div class="row"><button class="btn primary" data-act="post-new">Comment</button><button class="btn mut" data-act="cancel-new">Cancel</button></div></div>';
+    }
+    function card(c,isOrphan){
+      var A=authorBits(c.author);
+      var reps=(c.replies||[]).map(function(r){var R=authorBits(r.author);
+        return '<div class="reply"><div class="meta"><span class="miniava '+R.cls+'">'+R.ini+'</span><span class="who">'+esc(R.name)+'<span class="tag '+R.cls+'">'+R.tag+'</span></span></div><div class="body">'+esc(r.body)+'</div></div>';}).join('');
+      return '<div class="card '+c.status+(isOrphan?' orphan':'')+'" id="card_'+c.id+'">'+
+        '<div class="meta"><span class="miniava '+A.cls+'">'+A.ini+'</span><span class="who">'+esc(A.name)+'<span class="tag '+A.cls+'">'+A.tag+'</span></span><span class="when">'+ago(c.createdAt)+'</span></div>'+
+        (c.anchor&&c.anchor.quote?'<div class="qline">“'+esc(c.anchor.quote)+'”'+(isOrphan?' · <span style="color:#c9a23a">anchor lost</span>':(c.resolved&&c.resolved.soft?' · <span style="color:#c9a23a">moved/edited</span>':''))+'</div>':'')+
+        '<div class="body">'+esc(c.body)+'</div>'+(reps?'<div class="replies">'+reps+'</div>':'')+
+        '<div class="cardacts"><span class="status '+c.status+'">'+c.status+'</span>'+
+        (c.status==='open'?'<button class="linkbtn" data-act="toggle-reply" data-cid="'+c.id+'">Reply</button><button class="linkbtn" data-act="resolve" data-cid="'+c.id+'">Resolve</button>':'<button class="linkbtn" data-act="reopen" data-cid="'+c.id+'">Reopen</button>')+
+        (A.cls==='h'?'<button class="linkbtn danger" data-act="delete" data-cid="'+c.id+'">Remove</button>':'')+'</div>'+
+        '<div class="replybox" id="rb_'+c.id+'"><textarea data-reply="'+c.id+'" placeholder="Reply…"></textarea><div class="row"><button class="btn primary" data-act="post-reply" data-cid="'+c.id+'">Reply</button></div></div></div>';
+    }
+    html+=open.map(function(c){return card(c,false)}).join('');
+    if(orphan.length){html+='<div style="font-size:11px;color:#c9a23a;margin-top:2px">Anchor moved (doc changed)</div>'+orphan.map(function(c){return card(c,true)}).join('');}
+    if(resolved.length){html+='<div style="font-size:11px;color:var(--ink-faint);margin-top:2px">Resolved</div>'+resolved.map(function(c){return card(c,false)}).join('');}
+    if(!cs.length&&!state.pending){html+='<div class="empty">No comments yet.<br>Select any text in the document to leave one.</div>';}
+    $('#railBody').innerHTML=html;
+    // Keep the in-progress comment alive across re-renders (persist its text).
+    var nt=$('#newText'); if(nt){ nt.value=state.draft||''; nt.oninput=function(){ state.draft=nt.value; }; }
+  }
+
+  $('#railBody').addEventListener('click',function(e){
+    var t=e.target.closest('[data-act]'); if(!t)return;
+    var act=t.dataset.act, cid=t.dataset.cid;
+    if(act==='post-new'){
+      var v=($('#newText').value||'').trim(); if(!v)return;
+      postComment(v);
+    } else if(act==='cancel-new'){ state.pending=null; state.draft=''; renderThreads(); if(isMobile())closeDrawer(); }
+    else if(act==='toggle-reply'){ $('#rb_'+cid).classList.toggle('on'); var ta=document.querySelector('[data-reply="'+cid+'"]'); if(ta)ta.focus(); }
+    else if(act==='post-reply'){ var ta2=document.querySelector('[data-reply="'+cid+'"]'); var rv=(ta2.value||'').trim(); if(rv)postReply(cid,rv); }
+    else if(act==='resolve'){ setStatus(cid,'resolved'); }
+    else if(act==='reopen'){ setStatus(cid,'open'); }
+    else if(act==='delete'){ removeComment(cid); }
+  });
+
+  function focusCard(cid){openDrawer();var el=$('#card_'+cid);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('pulse');setTimeout(function(){el.classList.remove('pulse')},1200);} }
+  function isMobile(){ return window.matchMedia('(max-width:760px)').matches; }
+  function openDrawer(){ if(isMobile()) document.body.classList.add('drawer-open'); }
+  function closeDrawer(){ document.body.classList.remove('drawer-open'); try{$('#newText')&&$('#newText').blur();}catch(e){} }
+  // The handle is a toggle; the scrim and ✕ both close.
+  $('#drawerHandle').addEventListener('click',function(){document.body.classList.toggle('drawer-open');});
+  $('#scrim').addEventListener('click',closeDrawer);
+
+  // Keyboard-aware drawer: the VisualViewport shrinks when the soft keyboard
+  // opens, but position:fixed elements don't move — so the composer ends up
+  // behind the keyboard. Track the keyboard height in --kb so the CSS lifts the
+  // drawer (and the selection bar) above it.
+  (function(){
+    var vv=window.visualViewport; if(!vv)return;
+    function onVV(){
+      var kb=Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty('--kb', kb+'px');
+    }
+    vv.addEventListener('resize',onVV); vv.addEventListener('scroll',onVV); onVV();
+  })();
+
+  // ---- API calls ----
+  function postComment(body){
+    fetch(api+'/docs/'+encodeURIComponent(docId)+'/comments',{method:'POST',headers:headers(),body:JSON.stringify({anchor:state.pending,body:body})})
+      .then(function(r){return r.json()}).then(function(){state.pending=null;state.draft='';toast('Comment added');return load();}).catch(function(){toast('Failed to post');});
+  }
+  function postReply(cid,body){
+    fetch(api+'/docs/'+encodeURIComponent(docId)+'/comments/'+cid+'/replies',{method:'POST',headers:headers(),body:JSON.stringify({body:body})})
+      .then(function(){return load()}).catch(function(){toast('Failed');});
+  }
+  function removeComment(cid){
+    var c=(state.doc.comments||[]).find(function(x){return x.id===cid});
+    var snap=c?{anchor:c.anchor,body:c.body}:null;
+    fetch(api+'/docs/'+encodeURIComponent(docId)+'/comments/'+cid+'/delete',{method:'POST',headers:headers()})
+      .then(function(r){if(!r.ok)throw 0;return r.json();})
+      .then(function(){
+        return load().then(function(){
+          toast('Comment removed',{action:'Undo',duration:6000,onAction:function(){
+            if(!snap)return;
+            fetch(api+'/docs/'+encodeURIComponent(docId)+'/comments',{method:'POST',headers:headers(),body:JSON.stringify({anchor:snap.anchor,body:snap.body})})
+              .then(function(){return load()}).then(function(){toast('Restored');}).catch(function(){toast('Undo failed');});
+          }});
+        });
+      })
+      .catch(function(){toast('Failed to remove');});
+  }
+  function setStatus(cid,status){
+    fetch(api+'/docs/'+encodeURIComponent(docId)+'/comments/'+cid+'/status',{method:'POST',headers:headers(),body:JSON.stringify({status:status})})
+      .then(function(){return load()}).catch(function(){toast('Failed');});
+  }
+
+  var lastHtml=null;
+  function load(reRender){
+    return fetch(api+'/docs/'+encodeURIComponent(docId),{headers:headers()}).then(function(r){
+      if(r.status===401){gate();throw new Error('unauthorized');}
+      if(r.status===403){throw new Error('forbidden');}
+      if(r.status===404){throw new Error('notfound');}
+      if(!r.ok)throw new Error('load failed');
+      return r.json();
+    }).then(function(d){
+      docMsg(null);
+      state.doc=d; renderIds();
+      if(d.html!==lastHtml){ lastHtml=d.html; renderDoc(); } // re-render iframe only when HTML changed
+      else { var idoc=$('#doc').contentDocument; if(idoc&&idoc.body){indexBlocks(idoc);highlightComments(idoc);} }
+      // Don't rebuild the rail while a comment is being written — it would
+      // destroy the open composer (and drop focus/keyboard) mid-typing.
+      if(!state.pending) renderThreads();
+    });
+  }
+  // doc load states — no more frozen "Loading…" or swallowed errors
+  function docMsg(html){ var m=$('#docMsg'); if(html){m.innerHTML=html;m.classList.add('on');}else{m.classList.remove('on');} }
+  function handleLoadError(e){
+    var msg=e&&e.message;
+    if(msg==='unauthorized')return; // the gate handles this
+    $('#vbadge').style.display='none';
+    if(msg==='forbidden'){ $('#title').textContent='No access'; docMsg('<h3>No access to this document</h3><p>Your link is scoped to a different document. Open the link for “'+esc(docId)+'”.</p>'); return; }
+    if(msg==='notfound'){ $('#title').textContent='Not found'; docMsg('<h3>Document not found</h3><p>“'+esc(docId)+'” doesn’t exist yet. An agent can publish to this id.</p><a class="btn mut" href="/">All documents</a>'); return; }
+    $('#title').textContent='Connection error';
+    docMsg('<h3>Can’t reach the server</h3><p>Check your connection, then try again.</p><button class="btn primary" id="docRetry">Retry</button>');
+    var b=$('#docRetry'); if(b)b.onclick=function(){ docMsg('<p>Loading…</p>'); load().then(function(){ connectSSE(); startPolling(); }).catch(handleLoadError); };
+  }
+
+  // ---- live updates ----
+  // SSE gives instant updates when the server is a single long-lived process
+  // (local dev). On a serverless host (Vercel) one request can't be notified of
+  // a publish that happened in another invocation, so we also poll: cheap, and
+  // it's what keeps the viewer fresh there. A new published version bumps
+  // state.doc.version, which load() reflects.
+  var sseConnected=false;
+  function connectSSE(){
+    if(sseConnected)return; sseConnected=true;
+    try{
+      var es=new EventSource(api+'/docs/'+encodeURIComponent(docId)+'/events');
+      es.onmessage=function(ev){ try{var m=JSON.parse(ev.data);}catch(e){return;} if(m.type==='published')toast('Agent published v'+m.version); load().catch(handleLoadError); };
+      es.onerror=function(){ /* EventSource auto-reconnects; offline/online handlers cover the visible state */ };
+    }catch(e){}
+  }
+  var POLL_MS=5000, polling=false;
+  function startPolling(){
+    if(polling)return; polling=true;
+    setInterval(function(){
+      if(!docId||document.hidden||document.body.classList.contains('indexing'))return;
+      var prev=state.doc&&state.doc.version;
+      load().then(function(){
+        var now=state.doc&&state.doc.version;
+        if(prev!=null&&now!=null&&now>prev)toast('Agent published v'+now);
+      }).catch(function(){ /* transient poll failure — the next tick retries */ });
+    },POLL_MS);
+  }
+  window.addEventListener('offline',function(){ if(docId) toast('Offline — updates paused'); });
+  window.addEventListener('online',function(){ if(docId){ toast('Back online'); load().catch(handleLoadError); } });
+
+  // ---- gate ----
+  function gate(){ $('#gate').classList.add('on'); }
+  $('#tokenGo').addEventListener('click',function(){
+    var v=($('#tokenInput').value||'').trim(); if(!v)return;
+    // Hand the token to the server via the magic-link flow so it lands in the
+    // httpOnly cookie (page JS never holds it).
+    location.href=(docId?('/d/'+encodeURIComponent(docId)):'/')+'?token='+encodeURIComponent(v);
+  });
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){closePops();document.body.classList.remove('drawer-open');}});
+
+  // ---- docs index (front door at /) ----
+  function showIndex(){
+    document.body.classList.add('indexing');
+    $('#title').textContent='Documents';
+    $('#vbadge').style.display='none';
+    $('#ids').style.display='none';
+    fetchIndex();
+    document.addEventListener('visibilitychange',function(){ if(!document.hidden && document.body.classList.contains('indexing')) fetchIndex(); });
+  }
+  function fetchIndex(){
+    var box=$('#indexView');
+    if(!box.innerHTML) box.innerHTML='<div class="idxloading">Loading documents…</div>';
+    fetch(api+'/docs',{headers:headers()}).then(function(r){
+      if(r.status===401){gate();throw new Error('unauth');}
+      if(!r.ok)throw new Error('failed');
+      return r.json();
+    }).then(function(d){ renderIndex(d.docs||[]); }).catch(function(e){
+      if(e&&e.message==='unauth')return;
+      box.innerHTML='<div class="idxwrap"><div class="idxempty"><h3>Couldn’t load documents</h3><p>The server may be unreachable.</p><button class="btn mut" id="idxRetry">Retry</button></div></div>';
+      var b=$('#idxRetry'); if(b)b.onclick=fetchIndex;
+    });
+  }
+  function renderIndex(docs){
+    var box=$('#indexView');
+    if(!docs.length){ box.innerHTML='<div class="idxwrap"><div class="idxempty"><h3>No documents yet</h3><p>When your agent publishes HTML for review, it shows up here.</p></div></div>'; return; }
+    box.innerHTML='<div class="idxwrap"><div class="idxhead">Documents <span class="count">'+docs.length+'</span></div>'+
+      docs.map(function(d){
+        var open=d.openComments||0;
+        return '<a class="doccard" href="/d/'+encodeURIComponent(d.id)+'">'+
+          '<div class="dt">'+esc(d.title||d.id)+'</div>'+
+          '<div class="dm">v'+(d.version||1)+' · updated '+ago(d.updatedAt||Date.now())+(open?' · <span class="ob">'+open+' open</span>':' · no open comments')+'</div>'+
+        '</a>';
+      }).join('')+'</div>';
+  }
+  $('.logo').addEventListener('click',function(){ location.href='/'; });
+
+  // ---- boot ----
+  function boot(){
+    if(!docId){ showIndex(); return; }
+    docMsg('<p>Loading…</p>');
+    load().then(function(){ connectSSE(); startPolling(); }).catch(handleLoadError);
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
