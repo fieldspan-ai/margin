@@ -52,6 +52,7 @@ const USE_REMOTE = STORE_KIND !== 'json';
 // Input limits / validation.
 const DOC_ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const MAX_HTML_BYTES = 2 * 1024 * 1024; // ~2MB of markup per version
+const MAX_DECISION_BYTES = 64 * 1024;   // ~64KB of serialized decision value
 
 // Dynamic-token signing secret. Resolved once per warm instance in ensureStore():
 // env MARGIN_SECRET if set, else a random secret the store provisions and persists
@@ -248,6 +249,59 @@ function serveTextAsset(res, file, contentType) {
   res.end(body);
 }
 
+// The decision-widget SDK, injected into every decision-frame response so widget
+// authors don't hand-write postMessage plumbing. The widget runs in a sandboxed,
+// opaque-origin iframe (allow-scripts, NO allow-same-origin), so its ONLY outbound
+// channel is postMessage to the parent viewer — which holds the auth cookie and
+// performs the actual POST. The widget can never read a token or write the store.
+const DECISION_SDK = `<script>
+window.Margin = {
+  submit(decision, opts){ parent.postMessage({ __margin:'decision', value:decision, label:(opts&&opts.label)||null }, '*'); },
+  ready(){ parent.postMessage({ __margin:'ready' }, '*'); },
+  resize(){ parent.postMessage({ __margin:'height', height:document.documentElement.scrollHeight }, '*'); }
+};
+window.addEventListener('load', function(){ window.Margin.resize(); });
+window.addEventListener('resize', function(){ window.Margin.resize(); });
+</script>`;
+
+// The hardened CSP for the decision frame. default-src 'none' denies everything by
+// default; scripts/styles run inline (the widget is full JS); connect-src 'none'
+// blocks ALL network exfiltration (fetch/XHR/WebSocket/sendBeacon); frame-ancestors
+// 'self' stops the widget being embedded off-site. The iframe element itself uses
+// sandbox="allow-scripts" WITHOUT allow-same-origin, so the document gets an opaque
+// origin: no cookies, no localStorage, no parent-DOM access.
+const DECISION_CSP = [
+  "default-src 'none'",
+  "script-src 'unsafe-inline'",
+  "style-src 'unsafe-inline'",
+  "img-src data: https:",
+  "font-src data: https:",
+  "connect-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'self'",
+].join('; ');
+
+// Serve the interactive decision widget for a document on its own route, with its
+// own response CSP (a cousin of serveHtmlPage — no nonce; the widget needs inline
+// scripts). Loaded via the iframe `src` so THIS response's CSP governs it, not the
+// viewer page's nonce-CSP. The SDK is injected into <head> (or prepended if absent).
+function serveDecisionFrame(res, html) {
+  const doc = String(html || '');
+  let out;
+  if (/<head[^>]*>/i.test(doc)) out = doc.replace(/<head[^>]*>/i, (m) => m + DECISION_SDK);
+  else if (/<html[^>]*>/i.test(doc)) out = doc.replace(/<html[^>]*>/i, (m) => m + DECISION_SDK);
+  else out = DECISION_SDK + doc;
+  res.writeHead(200, {
+    'content-type': 'text/html; charset=utf-8',
+    'content-security-policy': DECISION_CSP,
+    // Do NOT set X-Frame-Options: DENY — it would block our own framing; rely on
+    // frame-ancestors 'self' instead.
+    ...CORS,
+  });
+  res.end(out);
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function handle(req, res) {
@@ -323,8 +377,11 @@ export async function handle(req, res) {
       if (typeof body.html !== 'string' || body.html.length > MAX_HTML_BYTES) {
         return sendJSON(res, 413, { error: 'html too large', hint: `max ${MAX_HTML_BYTES} bytes (~${Math.round(MAX_HTML_BYTES / 1024 / 1024)}MB)`, size: typeof body.html === 'string' ? body.html.length : 0 });
       }
+      if (body.decision_html !== undefined && body.decision_html !== null && (typeof body.decision_html !== 'string' || body.decision_html.length > MAX_HTML_BYTES)) {
+        return sendJSON(res, 413, { error: 'decision_html too large', hint: `max ${MAX_HTML_BYTES} bytes (~${Math.round(MAX_HTML_BYTES / 1024 / 1024)}MB)`, size: typeof body.decision_html === 'string' ? body.decision_html.length : 0 });
+      }
       const author = { identity: 'agent', name: AGENT_NAME, session_id: String(req.headers['x-agent-session'] || 'anon') };
-      const { docId: id, version } = await store.createDoc({ title: body.title, html: body.html, summary: body.summary, author, idHint: body.title });
+      const { docId: id, version } = await store.createDoc({ title: body.title, html: body.html, summary: body.summary, author, idHint: body.title, decisionHtml: body.decision_html });
       const agentToken = mintToken(id, 'agent', SIGNING_SECRET, 0); // agent capability: no expiry
       return sendJSON(res, 200, {
         doc_id: id,
@@ -367,7 +424,10 @@ export async function handle(req, res) {
       if (typeof body.html !== 'string' || body.html.length > MAX_HTML_BYTES) {
         return sendJSON(res, 413, { error: 'html too large', hint: `max ${MAX_HTML_BYTES} bytes (~${Math.round(MAX_HTML_BYTES / 1024 / 1024)}MB)`, size: typeof body.html === 'string' ? body.html.length : 0, doc_id: docId });
       }
-      const r = await store.publish(docId, { title: body.title, html: body.html, summary: body.summary, author: auth.author });
+      if (body.decision_html !== undefined && body.decision_html !== null && (typeof body.decision_html !== 'string' || body.decision_html.length > MAX_HTML_BYTES)) {
+        return sendJSON(res, 413, { error: 'decision_html too large', hint: `max ${MAX_HTML_BYTES} bytes (~${Math.round(MAX_HTML_BYTES / 1024 / 1024)}MB)`, size: typeof body.decision_html === 'string' ? body.decision_html.length : 0, doc_id: docId });
+      }
+      const r = await store.publish(docId, { title: body.title, html: body.html, summary: body.summary, author: auth.author, decisionHtml: body.decision_html });
       const openComments = (await store.getComments(docId, { status: 'open' }))?.threads.length ?? 0;
       broadcast(docId, { type: 'published', version: r.version, at: Date.now() });
       return sendJSON(res, 200, { docId: r.docId, version: r.version, created: r.version === 1, url: reviewerUrl(docId), openComments });
@@ -474,6 +534,71 @@ export async function handle(req, res) {
       }
       const cur = (await store.getDoc(docId))?.currentVersion ?? doc.currentVersion;
       return sendJSON(res, 200, { doc_id: docId, version: cur, timed_out: true, threads: [] });
+    }
+
+    // /api/docs/:id/decision/frame  (the interactive widget, served on its own
+    // route so its hardened response CSP — not the viewer's nonce-CSP — governs it).
+    // Same access gate as GET /api/docs/:id (the SameSite=Lax cookie rides the
+    // same-origin iframe src request).
+    if (parts[1] === 'docs' && parts[3] === 'decision' && parts[4] === 'frame' && method === 'GET') {
+      const doc = await store.getDoc(docId);
+      if (!doc || !doc.decisionVersion) return sendJSON(res, 404, { error: 'no decision widget', doc_id: docId });
+      const html = await store.readDecisionHtml(docId, doc.decisionVersion);
+      return serveDecisionFrame(res, html);
+    }
+
+    // /api/docs/:id/decisions  (the interactive-widget answer channel)
+    if (parts[1] === 'docs' && parts[3] === 'decisions' && parts.length === 4) {
+      if (method === 'GET') {
+        const out = await store.getDecisions(docId, { since: u.searchParams.get('since') || undefined });
+        if (!out) return sendJSON(res, 404, { error: 'not found', doc_id: docId });
+        return sendJSON(res, 200, out);
+      }
+      if (method === 'POST') {
+        const body = await readBody(req);
+        // Cap the serialized value so a widget can't dump unbounded data into the store.
+        let serialized;
+        try { serialized = JSON.stringify(body.value === undefined ? null : body.value); } catch { serialized = null; }
+        if (serialized === null) return sendJSON(res, 400, { error: 'value is not serializable', doc_id: docId });
+        if (serialized.length > MAX_DECISION_BYTES) {
+          return sendJSON(res, 413, { error: 'decision value too large', hint: `max ${MAX_DECISION_BYTES} bytes (~${Math.round(MAX_DECISION_BYTES / 1024)}KB)`, size: serialized.length, doc_id: docId });
+        }
+        const d = await store.addDecision(docId, { value: body.value, label: body.label, author: auth.author });
+        if (!d) return sendJSON(res, 404, { error: 'not found', doc_id: docId });
+        broadcast(docId, { type: 'decision', at: Date.now() });
+        return sendJSON(res, 200, d);
+      }
+    }
+
+    // /api/docs/:id/decisions/wait  (long-poll: block up to WAIT_MS for a new
+    // decision — the agent's decision-gate. Mirrors /wait for comments.)
+    if (parts[1] === 'docs' && parts[3] === 'decisions' && parts[4] === 'wait' && method === 'GET') {
+      const doc = await store.getDoc(docId);
+      if (!doc) return sendJSON(res, 404, { error: 'not found', doc_id: docId });
+      const since = u.searchParams.get('since') || null;
+      // New = a decision recorded after `since`, or (no `since`) one that didn't
+      // exist when we started waiting.
+      const baseIds = new Set((doc.decisions || []).map((d) => d.id));
+      const collect = async () => {
+        const out = await store.getDecisions(docId, { since: since || undefined });
+        if (!out) return [];
+        return since ? out.decisions : out.decisions.filter((d) => !baseIds.has(d.id));
+      };
+      const deadline = Date.now() + WAIT_MS;
+      let aborted = false;
+      req.on('close', () => { aborted = true; });
+      for (;;) {
+        const fresh = await collect();
+        if (fresh.length) {
+          const cur = (await store.getDoc(docId))?.currentVersion ?? doc.currentVersion;
+          return sendJSON(res, 200, { doc_id: docId, version: cur, timed_out: false, decisions: fresh });
+        }
+        if (aborted) return;
+        if (Date.now() + WAIT_POLL_MS >= deadline) break;
+        await sleep(WAIT_POLL_MS);
+      }
+      const cur = (await store.getDoc(docId))?.currentVersion ?? doc.currentVersion;
+      return sendJSON(res, 200, { doc_id: docId, version: cur, timed_out: true, decisions: [] });
     }
 
     // /api/docs/:id/events  (SSE — best-effort live updates within one instance)

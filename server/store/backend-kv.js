@@ -15,6 +15,7 @@ const safe = (id) => String(id).replace(/[^a-zA-Z0-9_:-]/g, '_');
 const K = {
   doc: (id) => 'doc:' + safe(id),
   html: (id, v) => 'doc:' + safe(id) + ':html:v' + v,
+  decision: (id, v) => 'doc:' + safe(id) + ':decision:v' + v,
   index: 'docs:index',
   meta: (key) => 'meta:' + safe(key),
   rl: (key) => 'rl:' + safe(key),
@@ -53,6 +54,15 @@ export async function getHtml(id, v) {
 }
 export async function putHtml(id, v, html) {
   await redis.set(K.html(id, v), html || '');
+}
+// The optional interactive decision-widget payload for a version (parallel to
+// getHtml/putHtml).
+export async function getDecisionHtml(id, v) {
+  const h = await redis.get(K.decision(id, v));
+  return h == null ? null : String(h);
+}
+export async function putDecisionHtml(id, v, html) {
+  await redis.set(K.decision(id, v), html || '');
 }
 export async function listRecords() {
   const ids = await redis.zrange(K.index, 0, -1, { rev: true });

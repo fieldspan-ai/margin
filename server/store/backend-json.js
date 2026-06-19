@@ -12,6 +12,7 @@ let DATA_DIR = './data';
 const safe = (id) => String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
 const docPath = (id) => path.join(DATA_DIR, safe(id) + '.json');
 const htmlPath = (id, v) => path.join(DATA_DIR, safe(id), 'v' + v + '.html');
+const decisionHtmlPath = (id, v) => path.join(DATA_DIR, safe(id), 'v' + v + '.decision.html');
 // Meta lives in a subdir so listRecords (top-level *.json only) never sees it.
 const metaPath = (key) => path.join(DATA_DIR, '.meta', safe(key) + '.json');
 
@@ -54,6 +55,17 @@ export async function getHtml(id, v) {
 }
 export async function putHtml(id, v, html) {
   const p = htmlPath(id, v);
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  writeFileAtomic(p, html || '');
+}
+// The optional interactive decision-widget payload for a version (parallel to
+// getHtml/putHtml; stored alongside the review HTML).
+export async function getDecisionHtml(id, v) {
+  try { return fs.readFileSync(decisionHtmlPath(id, v), 'utf8'); }
+  catch { return null; }
+}
+export async function putDecisionHtml(id, v, html) {
+  const p = decisionHtmlPath(id, v);
   fs.mkdirSync(path.dirname(p), { recursive: true });
   writeFileAtomic(p, html || '');
 }

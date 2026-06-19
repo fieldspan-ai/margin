@@ -114,8 +114,9 @@ server.registerTool('margin_publish', {
     doc_id: z.string().optional().describe('Omit to create a new document. Pass a doc_id returned by a previous margin_publish to revise that document.'),
     title: z.string().optional().describe('Human-readable title shown in the viewer; also seeds the readable part of a new document id.'),
     summary: z.string().optional().describe('Short note describing what changed in this version.'),
+    decision_html: z.string().optional().describe('Optional: a full interactive HTML widget ("playground") where the user explores and commits a decision. Unlike the review html (scripts OFF), this runs real JavaScript in a hardened sandbox. Call Margin.submit({...}) when the user commits; read the result back with margin_wait_for_decision / margin_get_decisions.'),
   },
-}, async ({ html, doc_id, title, summary }) => {
+}, async ({ html, doc_id, title, summary, decision_html }) => {
   try {
     if (!html || !html.trim()) return fail('html is required and cannot be empty');
     const id = doc_id ? doc_id.trim() : null;
@@ -124,12 +125,12 @@ server.registerTool('margin_publish', {
     if (id) {
       const token = tokenFor(id);
       if (!token) return fail(`no saved credential for "${id}". Omit doc_id to create a new document, or set AGENT_API_KEY if the host uses a global key.`);
-      const r = await api(`/api/docs/${encodeURIComponent(id)}/publish`, { method: 'POST', token, body: { html, title, summary } });
+      const r = await api(`/api/docs/${encodeURIComponent(id)}/publish`, { method: 'POST', token, body: { html, title, summary, decision_html } });
       return ok({ doc_id: id, version: r.version, created: !!r.created, url: r.url, open_comments: r.openComments ?? 0 });
     }
 
     // First publish — create the document with no credential; keep the capability.
-    const r = await api('/api/docs', { method: 'POST', body: { html, title, summary } });
+    const r = await api('/api/docs', { method: 'POST', body: { html, title, summary, decision_html } });
     if (r.agent_token) saveToken(r.doc_id, r.agent_token);
     return ok({ doc_id: r.doc_id, version: r.version, created: true, url: r.reviewer_url, open_comments: 0 });
   } catch (e) { return fail(e.message); }
@@ -187,6 +188,42 @@ server.registerTool('margin_wait_for_comments', {
     const qs = since_version ? `?since_version=${since_version}` : '';
     const out = await api(`/api/docs/${encodeURIComponent(doc_id)}/wait${qs}`, { token, timeoutMs: 30000 });
     return ok(shapeComments(doc_id, out, true));
+  } catch (e) { return fail(e.message); }
+});
+
+server.registerTool('margin_get_decisions', {
+  title: 'Read decision-widget results',
+  description:
+    "Fetch the decisions the user committed in a document's interactive decision widget (published via margin_publish's decision_html). Each decision carries the opaque `value` the widget submitted plus an optional human-readable `label`.",
+  inputSchema: {
+    doc_id: z.string().describe('The document slug.'),
+    since: z.string().optional().describe('Return only decisions recorded after this decision id.'),
+  },
+}, async ({ doc_id, since }) => {
+  try {
+    const token = tokenFor(doc_id);
+    if (!token) return fail(`no saved credential for "${doc_id}". Publish it first with margin_publish.`);
+    const qs = since ? `?since=${encodeURIComponent(since)}` : '';
+    const out = await api(`/api/docs/${encodeURIComponent(doc_id)}/decisions${qs}`, { token });
+    return ok({ doc_id, title: out.title, version: out.version, decisions: out.decisions || [] });
+  } catch (e) { return fail(e.message); }
+});
+
+server.registerTool('margin_wait_for_decision', {
+  title: 'Wait for a decision',
+  description:
+    'Long-poll (blocks up to ~25s) until the user commits a choice in the document\'s interactive decision widget, then returns the new decisions (each with `value` and `label` so you can act). Use this to pause for the user\'s decision instead of busy-polling. If nothing arrives it returns timed_out:true — call again to keep waiting.',
+  inputSchema: {
+    doc_id: z.string().describe('The document slug.'),
+    since: z.string().optional().describe('Return immediately if a decision newer than this decision id already exists. Pass the id of the last decision you acted on.'),
+  },
+}, async ({ doc_id, since }) => {
+  try {
+    const token = tokenFor(doc_id);
+    if (!token) return fail(`no saved credential for "${doc_id}". Publish it first with margin_publish.`);
+    const qs = since ? `?since=${encodeURIComponent(since)}` : '';
+    const out = await api(`/api/docs/${encodeURIComponent(doc_id)}/decisions/wait${qs}`, { token, timeoutMs: 30000 });
+    return ok({ doc_id, version: out.version, timed_out: !!out.timed_out, decisions: out.decisions || [] });
   } catch (e) { return fail(e.message); }
 });
 

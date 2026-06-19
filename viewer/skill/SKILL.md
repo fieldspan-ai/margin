@@ -107,6 +107,63 @@ curl -s -X POST __BASE_URL__/api/docs/DOC_ID/comments/COMMENT_ID/status \
 The user just refreshes the same link to see the new version, with their
 addressed comments marked resolved.
 
+## Decision widgets / playgrounds — ask the user to decide in full HTML
+
+Sometimes you don't want a comment — you want the user to *decide* something. A
+**decision widget** is a full interactive HTML "playground" the user explores,
+then commits a choice that you read back. Think "AskUserQuestion, but as rich
+HTML you design": configure options, drag a slider, pick from a live preview,
+compare layouts side by side.
+
+**When to use it:** the decision is richer than yes/no and the user benefits from
+interactive exploration (tuning parameters, previewing variants, arranging
+items). For a plain comment or a simple approval, stick with the review flow
+above.
+
+**Scripts run here.** Unlike the static review document (scripts **off**), the
+decision widget runs **real JavaScript** in a hardened, sandboxed iframe (opaque
+origin: no network, no cookies, no storage). Its only channel back is a tiny SDK
+that's injected for you:
+
+```js
+Margin.submit(value, { label })  // user committed: value = any JSON, label = short human string
+Margin.ready()                   // optional: signal the widget is interactive
+Margin.resize()                  // optional: re-report height (auto on load + window resize)
+```
+
+**Author contract:** build any interactive HTML/JS you like, then call
+`Margin.submit({...}, { label: "Compact layout" })` when the user clicks the
+button that commits their choice. The viewer shows a "Decision sent" confirmation
+and posts it to the server for you.
+
+**Publish it** as a second payload alongside (or instead of focusing on) the
+review HTML — any document can carry one:
+
+```bash
+jq -n --rawfile html /tmp/margin-doc.html --rawfile dec /tmp/margin-widget.html \
+  --arg title "Pick a layout" \
+  '{title:$title, html:$html, decision_html:$dec}' \
+| curl -s -X POST __BASE_URL__/api/docs \
+    -H "content-type: application/json" --data-binary @- | jq '{doc_id, reviewer_url}'
+```
+
+`decision_html` also works on revise (`POST /api/docs/DOC_ID/publish`).
+
+**Read it back** — block until the user decides, or just fetch the latest:
+
+```bash
+# Block up to ~25s for a fresh decision (call again on timed_out:true):
+curl -s "__BASE_URL__/api/docs/DOC_ID/decisions/wait" \
+  -H "authorization: Bearer AGENT_TOKEN" | jq .
+
+# Or read whatever has been decided so far:
+curl -s "__BASE_URL__/api/docs/DOC_ID/decisions" \
+  -H "authorization: Bearer AGENT_TOKEN" | jq '.decisions'
+```
+
+Each decision carries the `value` the widget submitted plus the optional `label`,
+so you know exactly what the user chose and can act on it.
+
 ## Rules
 
 - **Reuse the same `doc_id` for every revision** — never create a new document
@@ -127,3 +184,6 @@ addressed comments marked resolved.
 | Read comments | `GET /api/docs/DOC_ID/comments?status=open` · `Bearer AGENT_TOKEN` |
 | Resolve | `POST /api/docs/DOC_ID/comments/COMMENT_ID/status` · `Bearer AGENT_TOKEN` · body `{"status":"resolved"}` |
 | Fresh link | `POST /api/docs/DOC_ID/link` · `Bearer AGENT_TOKEN` · body `{"expires_in_days":7}` (optional) |
+| Decision widget | add `decision_html` to the create/revise body — a full interactive HTML/JS playground that calls `Margin.submit(value,{label})` |
+| Read decisions | `GET /api/docs/DOC_ID/decisions` · `Bearer AGENT_TOKEN` |
+| Wait for decision | `GET /api/docs/DOC_ID/decisions/wait` · `Bearer AGENT_TOKEN` → blocks ~25s, `timed_out:true` if none |

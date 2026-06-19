@@ -22,7 +22,7 @@ before(async () => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'margin-api-'));
   child = spawn('node', ['server/server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, AGENT_API_KEY: AK, REVIEWER_TOKEN: RT, PUBLIC_BASE_URL: BASE },
+    env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, AGENT_API_KEY: AK, REVIEWER_TOKEN: RT, PUBLIC_BASE_URL: BASE, MARGIN_WAIT_MS: '2000', MARGIN_WAIT_POLL_MS: '200' },
     stdio: 'ignore',
   });
   for (let i = 0; i < 60; i++) {
@@ -131,4 +131,51 @@ test('a doc-scoped token sees only its doc in the index; the owner sees all', as
 test('an expiring link can be minted', async () => {
   const j = await (await fetch(BASE + '/api/docs/rep/link', { method: 'POST', headers: A(), body: JSON.stringify({ expires_in_days: 7 }) })).json();
   assert.ok(j.expires_at && j.expires_at > Date.now());
+});
+
+// --- decision widgets (the interactive playground channel) ---
+
+test('publish with decision_html → getDocView reports hasDecision', async () => {
+  const pub = await fetch(BASE + '/api/docs/dec/publish', { method: 'POST', headers: A(), body: JSON.stringify({ html: '<p>review me</p>', decision_html: '<!doctype html><html><head></head><body><button onclick="Margin.submit({pick:1},{label:\'one\'})">Pick</button></body></html>' }) });
+  assert.equal(pub.status, 200);
+  const view = await (await fetch(BASE + '/api/docs/dec', { headers: R() })).json();
+  assert.equal(view.hasDecision, true);
+  assert.equal(view.decisionVersion, 1);
+});
+
+test('the decision/frame route returns the hardened CSP and injected SDK', async () => {
+  const r = await fetch(BASE + '/api/docs/dec/decision/frame', { headers: R() });
+  assert.equal(r.status, 200);
+  const csp = r.headers.get('content-security-policy') || '';
+  assert.match(csp, /connect-src 'none'/);
+  assert.match(csp, /frame-ancestors 'self'/);
+  const body = await r.text();
+  assert.match(body, /window\.Margin/);
+});
+
+test('POST /decisions stores a decision and GET /decisions returns it', async () => {
+  const cr = await fetch(BASE + '/api/docs/dec/decisions', { method: 'POST', headers: R(), body: JSON.stringify({ value: { pick: 1 }, label: 'one' }) });
+  assert.equal(cr.status, 200);
+  const got = await (await fetch(BASE + '/api/docs/dec/decisions', { headers: A() })).json();
+  assert.ok(got.decisions.length >= 1);
+  const last = got.decisions[got.decisions.length - 1];
+  assert.deepEqual(last.value, { pick: 1 });
+  assert.equal(last.label, 'one');
+});
+
+test('decisions/wait returns a freshly-posted decision', async () => {
+  const waitP = fetch(BASE + '/api/docs/dec/decisions/wait', { headers: A() }).then((r) => r.json());
+  await new Promise((r) => setTimeout(r, 250));
+  await fetch(BASE + '/api/docs/dec/decisions', { method: 'POST', headers: R(), body: JSON.stringify({ value: 'live', label: 'live' }) });
+  const out = await waitP;
+  assert.equal(out.timed_out, false);
+  assert.ok(out.decisions.length >= 1);
+});
+
+test('decisions/wait times out cleanly when none arrive', async () => {
+  const got = await (await fetch(BASE + '/api/docs/dec/decisions', { headers: A() })).json();
+  const lastId = got.decisions[got.decisions.length - 1].id;
+  const out = await (await fetch(BASE + '/api/docs/dec/decisions/wait?since=' + encodeURIComponent(lastId), { headers: A() })).json();
+  assert.equal(out.timed_out, true);
+  assert.deepEqual(out.decisions, []);
 });
