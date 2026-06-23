@@ -1,0 +1,48 @@
+# Margin
+
+Publish HTML for a human to review on their phone and get their comments back. No login or API key required — the server issues a per-document token on first publish.
+
+**Base URL:** __BASE_URL__
+
+## Publish a document
+
+Write a self-contained HTML file (inline CSS only, no external scripts), then:
+
+```bash
+jq -n --rawfile html /tmp/margin-doc.html --arg title "Title" \
+  '{title:$title, html:$html}' \
+| curl -s -X POST __BASE_URL__/api/docs \
+    -H "content-type: application/json" --data-binary @- \
+| tee /tmp/margin-resp.json | jq '{doc_id, reviewer_url}'
+
+jq '{doc_id, agent_token}' /tmp/margin-resp.json > ./.margin.json
+```
+
+Give the user the `reviewer_url`. They open it, select text, and leave comments.
+
+## Read comments
+
+```bash
+curl -s "__BASE_URL__/api/docs/DOC_ID/comments?status=open" \
+  -H "authorization: Bearer AGENT_TOKEN" | jq .
+```
+
+## Revise and re-publish
+
+Always re-publish to the **same** `doc_id` so the link stays stable:
+
+```bash
+jq -n --rawfile html /tmp/margin-doc.html --arg s "what changed" \
+  '{html:$html, summary:$s}' \
+| curl -s -X POST __BASE_URL__/api/docs/DOC_ID/publish \
+    -H "authorization: Bearer AGENT_TOKEN" \
+    -H "content-type: application/json" --data-binary @-
+```
+
+Mark handled comments resolved:
+
+```bash
+curl -s -X POST __BASE_URL__/api/docs/DOC_ID/comments/COMMENT_ID/status \
+  -H "authorization: Bearer AGENT_TOKEN" \
+  -H "content-type: application/json" -d '{"status":"resolved"}'
+```

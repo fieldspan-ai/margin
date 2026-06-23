@@ -277,6 +277,7 @@ export async function handle(req, res) {
       // `curl -o` / `curl | sh` Just Work; __BASE_URL__ is substituted to this host.
       if (u.pathname === '/skill.md') return serveTextAsset(res, 'skill/SKILL.md', 'text/markdown; charset=utf-8');
       if (u.pathname === '/install.sh') return serveTextAsset(res, 'install.sh', 'text/x-shellscript; charset=utf-8');
+      if (u.pathname === '/llms.txt') return serveTextAsset(res, 'llms.txt', 'text/plain; charset=utf-8');
       // Magic link: ?token rides in the URL once, then we move it into an httpOnly
       // cookie and redirect to a clean URL so it never sits in history or reaches
       // page JS. (decision #2)
@@ -293,6 +294,11 @@ export async function handle(req, res) {
           headers['set-cookie'] = `margin_token=${encodeURIComponent(qtok)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${secure}`;
         }
         res.writeHead(302, headers);
+        return res.end();
+      }
+      // AI/agent user agents hitting the root get the machine-readable landing.
+      if (u.pathname === '/' && /claude|anthropic|openai|chatgpt|python-httpx|python-requests/i.test(req.headers['user-agent'] || '')) {
+        res.writeHead(302, { location: '/llms.txt', ...CORS });
         return res.end();
       }
       // Public landing page at the front door. An owner (global agent key or the
