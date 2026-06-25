@@ -1,0 +1,46 @@
+{
+  "name": "margin-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Margin — publish agent-generated HTML to a private link, review and leave anchored comments on your phone, and feed the comments back to the agent.",
+  "type": "module",
+  "bin": {
+    "margin-mcp": "margin-mcp.js"
+  },
+  "main": "margin-mcp.js",
+  "mcpName": "io.github.fieldspan-ai/margin",
+  "files": [
+    "margin-mcp.js",
+    "server.json",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^4.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "claude-code",
+    "ai-agent",
+    "human-in-the-loop",
+    "review",
+    "feedback",
+    "annotations",
+    "approval"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fieldspan-ai/margin.git",
+    "directory": "mcp"
+  },
+  "homepage": "https://margin.fieldspan.ai",
+  "bugs": {
+    "url": "https://github.com/fieldspan-ai/margin/issues"
+  },
+  "author": "Fieldspan",
+  "license": "MIT"
+}

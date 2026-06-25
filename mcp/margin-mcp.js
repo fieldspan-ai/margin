@@ -26,10 +26,21 @@ import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { loadDotenv } from '../server/config.js';
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
+
+// Minimal .env loader, inlined so this file publishes as a standalone npm
+// package (`margin-mcp`) with no dependency on the rest of the repo. Mirrors
+// server/config.js#loadDotenv. A published install has no .env at ROOT, so this
+// is a no-op there — config comes from the MCP client's env. No-op if absent.
+function loadDotenv(rootDir) {
+  const f = path.join(rootDir, '.env');
+  if (!fs.existsSync(f)) return;
+  for (const line of fs.readFileSync(f, 'utf8').split('\n')) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
+    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2];
+  }
+}
 loadDotenv(ROOT);
 
 const DEFAULT_BASE = 'https://margin.fieldspan.ai';
