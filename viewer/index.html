@@ -282,19 +282,40 @@
     iframe.srcdoc=state.doc.html||'<p style="font-family:sans-serif;color:#888;padding:24px">Empty document.</p>';
   }
 
+  // Resolve the anchored block from a selection range. A selection that spans
+  // multiple blocks (or starts/ends right at an element boundary) has a
+  // commonAncestorContainer ABOVE any block — closest() from there finds nothing,
+  // so the comment bar never appears. Try the block at the selection START first
+  // (the intuitive anchor), then its END, then fall back to the common ancestor.
+  function closestBlock(node){
+    if(!node) return null;
+    var el=node.nodeType===3?node.parentElement:node;
+    return el&&el.closest?el.closest('[data-block-id]'):null;
+  }
+  function edgeNode(container,offset){
+    // Descend an element container to the child the selection edge actually sits on.
+    if(container&&container.nodeType===1){
+      return container.childNodes[offset]||container.childNodes[offset-1]||container;
+    }
+    return container;
+  }
+  function blockFromRange(range){
+    return closestBlock(edgeNode(range.startContainer,range.startOffset))
+      || closestBlock(edgeNode(range.endContainer,range.endOffset))
+      || closestBlock(range.commonAncestorContainer);
+  }
+
   function wireDocEvents(idoc){
     var iwin=$('#doc').contentWindow;
     // Snapshot the selection into state.candidate on every change, so moving focus
     // to the comment textarea (which collapses the selection) doesn't lose it.
     function snapshot(){
       var sel=iwin.getSelection();
-      if(!sel||sel.isCollapsed){ if(!state.pending) hideSelbtn(); return; }
+      if(!sel||sel.isCollapsed||!sel.rangeCount){ if(!state.pending) hideSelbtn(); return; }
       var text=sel.toString().replace(/\s+/g,' ').trim();
       if(text.length<2){ hideSelbtn(); return; }
       var range=sel.getRangeAt(0);
-      var node=range.commonAncestorContainer;
-      var el=(node.nodeType===3?node.parentElement:node);
-      el=el&&el.closest('[data-block-id]');
+      var el=blockFromRange(range);
       if(!el){ hideSelbtn(); return; }
       state.candidate={block_id:el.getAttribute('data-block-id'),block_text:el.textContent.trim().slice(0,4000),quote:text,block_type:el.tagName.toLowerCase()};
       showSelbtn(range);
@@ -428,6 +449,20 @@
     else if(act==='resolve'){ setStatus(cid,'resolved'); }
     else if(act==='reopen'){ setStatus(cid,'open'); }
     else if(act==='delete'){ removeComment(cid); }
+  });
+
+  // Cmd/Ctrl+Enter submits the focused composer or reply (Enter alone keeps
+  // inserting newlines, so multi-line comments still work).
+  $('#railBody').addEventListener('keydown',function(e){
+    if(e.key!=='Enter'||!(e.metaKey||e.ctrlKey))return;
+    var ta=e.target;
+    if(ta.id==='newText'){
+      e.preventDefault();
+      var v=(ta.value||'').trim(); if(v)postComment(v);
+    } else if(ta.dataset&&ta.dataset.reply){
+      e.preventDefault();
+      var rv=(ta.value||'').trim(); if(rv)postReply(ta.dataset.reply,rv);
+    }
   });
 
   function focusCard(cid){openDrawer();var el=$('#card_'+cid);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('pulse');setTimeout(function(){el.classList.remove('pulse')},1200);} }
