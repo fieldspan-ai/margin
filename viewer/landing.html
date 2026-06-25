@@ -5,6 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Margin — review what your agent makes, rendered, on your phone</title>
 <meta name="description" content="Margin shows your agent's output the way it'll actually look — rendered HTML or Markdown — on a private link. Tap any line, leave a comment, and it revises. No login." />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Margin" />
+<meta property="og:url" content="__BASE_URL__/" />
+<meta property="og:title" content="Margin — review what your agent makes, rendered, on your phone" />
+<meta property="og:description" content="Your agent publishes the finished page to a private link. You mark up any line on your phone, and it revises. No login, no screenshots." />
+<meta property="og:image" content="__BASE_URL__/assets/margin-og.jpg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="1500" />
+<meta property="og:image:alt" content="Margin reviewing an AI-generated report on a phone with anchored comments, beside a terminal publishing the document" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Margin — review what your agent makes, on your phone" />
+<meta name="twitter:description" content="Mark up your agent's rendered output on your phone — it revises in place. No login, no screenshots." />
+<meta name="twitter:image" content="__BASE_URL__/assets/margin-og.jpg" />
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -211,6 +224,16 @@
   .bubble .who{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px}
   .bubble .av{width:19px;height:19px;border-radius:50%;background:var(--coral);display:grid;place-items:center;font-size:9px;font-weight:700;color:#fff}
   .bubble .txt{font-size:13.5px;color:var(--ink)}
+
+  /* showcase */
+  .shots{display:grid;grid-template-columns:1fr;gap:22px;margin-top:44px}
+  @media(min-width:680px){.shots{grid-template-columns:1fr 1fr;gap:26px}}
+  .shot{margin:0;padding:10px;overflow:hidden}
+  .shot:nth-child(1){transform:rotate(-.7deg)}
+  .shot:nth-child(2){transform:rotate(.7deg)}
+  .shot img{display:block;width:100%;height:auto;border-radius:15px}
+  .shotcap{margin:34px 0 0;font-size:13.5px;color:var(--muted);display:flex;align-items:center;gap:9px}
+  .shotcap .live{flex:0 0 auto}
 
   /* the point */
   .point{text-align:center}
@@ -466,6 +489,21 @@ Rules: reuse the same doc_id for revisions; keep agent_token private. To start, 
       </div>
     </div>
   </div>
+</div></section>
+
+<section id="showcase"><div class="wrap">
+  <p class="eyebrow">See it in action</p>
+  <h2 class="display">The whole loop, in one <span class="em coral-text">frame</span>.</h2>
+  <p class="lead head-lead">Your agent publishes the finished page, you mark up any line on your phone, and it revises in place — no screenshots, no copy-paste.</p>
+  <div class="shots">
+    <figure class="shot card sticker">
+      <img src="/assets/margin-loop.jpg" width="880" height="1100" alt="Margin reviewing an AI-generated report on a phone with anchored comments, beside a terminal publishing the document" loading="lazy" decoding="async" />
+    </figure>
+    <figure class="shot card sticker">
+      <img src="/assets/margin-ui.jpg" width="880" height="1100" alt="The Margin review interface — an agent-generated document with a comment rail and a live activity feed" loading="lazy" decoding="async" />
+    </figure>
+  </div>
+  <p class="shotcap"><span class="live"></span> One private link, start to finish — published, reviewed, and revised.</p>
 </div></section>
 
 <section class="point">

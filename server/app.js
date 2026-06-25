@@ -44,6 +44,12 @@ const PUBLIC_BASE_URL = (
 ).replace(/\/$/, '');
 const DATA_DIR = path.resolve(ROOT, process.env.DATA_DIR || './data');
 const VIEWER_DIR = path.join(ROOT, 'viewer');
+const ASSETS_DIR = path.join(VIEWER_DIR, 'assets');
+// Static image assets bundled with the landing page (served at /assets/<name>).
+const ASSET_TYPES = {
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp', '.gif': 'image/gif', '.svg': 'image/svg+xml; charset=utf-8',
+};
 // 'kv' (Upstash/Vercel KV) and 'memory' (in-process Redis) both use the KV
 // code path; anything else is the JSON file backend.
 const STORE_KIND = process.env.STORE === 'kv' ? 'kv' : process.env.STORE === 'memory' ? 'memory' : 'json';
@@ -248,6 +254,23 @@ function serveTextAsset(res, file, contentType) {
   res.end(body);
 }
 
+// A bundled binary asset (landing-page images) from viewer/assets. Allow-listed
+// by extension; the filename is constrained and the resolved path is verified to
+// stay inside ASSETS_DIR, so /assets/../ and absolute paths can't escape.
+function serveAsset(res, name) {
+  const ext = path.extname(name).toLowerCase();
+  const type = ASSET_TYPES[ext];
+  const full = path.join(ASSETS_DIR, name);
+  if (!type || !/^[a-zA-Z0-9._-]+$/.test(name) || !full.startsWith(ASSETS_DIR + path.sep)) {
+    res.writeHead(404, CORS); return res.end('not found');
+  }
+  let buf;
+  try { buf = fs.readFileSync(full); }
+  catch { res.writeHead(404, CORS); return res.end('not found'); }
+  res.writeHead(200, { 'content-type': type, 'cache-control': 'public, max-age=31536000, immutable', ...CORS });
+  res.end(buf);
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function handle(req, res) {
@@ -278,6 +301,8 @@ export async function handle(req, res) {
       if (u.pathname === '/skill.md') return serveTextAsset(res, 'skill/SKILL.md', 'text/markdown; charset=utf-8');
       if (u.pathname === '/install.sh') return serveTextAsset(res, 'install.sh', 'text/x-shellscript; charset=utf-8');
       if (u.pathname === '/llms.txt') return serveTextAsset(res, 'llms.txt', 'text/plain; charset=utf-8');
+      // Bundled landing-page images (og/social card + in-page showcase).
+      if (parts[0] === 'assets' && parts.length === 2) return serveAsset(res, parts[1]);
       // Magic link: ?token rides in the URL once, then we move it into an httpOnly
       // cookie and redirect to a clean URL so it never sits in history or reaches
       // page JS. (decision #2)
