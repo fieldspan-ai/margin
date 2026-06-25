@@ -1,0 +1,29 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.fieldspan-ai/margin",
+  "description": "Review agent-generated HTML on your phone with anchored comments that feed back to the agent.",
+  "repository": {
+    "url": "https://github.com/fieldspan-ai/margin",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "margin-mcp",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "MARGIN_BASE_URL",
+          "description": "Base URL of your Margin server. Defaults to the hosted instance (https://margin.fieldspan.ai); set this only to point at a self-hosted Margin.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

@@ -67,21 +67,28 @@ rendered document with a comment rail. Select text and leave a comment.
 
 ### Option A — the MCP server (recommended)
 
-`mcp/margin-mcp.js` exposes five tools over stdio. No key needed — wire it in and
-publish:
+Published as [`margin-mcp`](https://www.npmjs.com/package/margin-mcp) on npm — no
+clone, no key, defaults to the hosted deploy. Wire it into any MCP client:
 
 ```bash
-# Defaults to the hosted deploy (https://margin.fieldspan.ai). Nothing else to set.
-claude mcp add margin -- node "$(pwd)/mcp/margin-mcp.js"
+# Claude Code
+claude mcp add margin -- npx -y margin-mcp
 ```
 
-To point it at your own server (e.g. local dev), set the base URL:
+Or in any MCP config (`mcpServers`) — Cursor, Cline, Windsurf, Goose, …:
+
+```json
+{ "mcpServers": { "margin": { "command": "npx", "args": ["-y", "margin-mcp"] } } }
+```
+
+It exposes five tools over stdio. To point it at your own server (e.g. local dev
+or a self-hosted Margin), set the base URL:
 
 ```bash
-claude mcp add margin \
-  -e MARGIN_BASE_URL=http://localhost:8787 \
-  -- node /absolute/path/to/mcp/margin-mcp.js
+claude mcp add margin -e MARGIN_BASE_URL=http://localhost:8787 -- npx -y margin-mcp
 ```
+
+See [`mcp/`](mcp/README.md) for the standalone package and full configuration.
 
 The first `margin_publish` (omit `doc_id`) creates the document and the MCP caches
 the returned agent capability token (`~/.margin/tokens.json`); pass the returned
