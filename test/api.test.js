@@ -132,3 +132,34 @@ test('an expiring link can be minted', async () => {
   const j = await (await fetch(BASE + '/api/docs/rep/link', { method: 'POST', headers: A(), body: JSON.stringify({ expires_in_days: 7 }) })).json();
   assert.ok(j.expires_at && j.expires_at > Date.now());
 });
+
+// --- analytics (owner-only) ---
+test('stats needs auth → 401', async () => {
+  assert.equal((await fetch(BASE + '/api/stats')).status, 401);
+});
+
+test('a doc-scoped token cannot read global stats → 403', async () => {
+  assert.equal((await fetch(BASE + '/api/stats', { headers: { authorization: 'Bearer ' + scopedToken } })).status, 403);
+});
+
+test('owner reads stats: totals + activity + daily series + recent docs', async () => {
+  const r = await fetch(BASE + '/api/stats', { headers: R() });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  // At least the docs created in earlier tests (rep, another) are counted.
+  assert.ok(j.totals.documents >= 2, 'counts documents');
+  assert.ok(j.totals.versions >= j.totals.documents, 'versions ≥ documents');
+  assert.ok(j.totals.comments >= 1, 'counts comments left earlier');
+  assert.ok(j.totals.agent_sessions >= 1, 'counts distinct agent sessions');
+  assert.equal(j.totals.open_comments + j.totals.resolved_comments, j.totals.comments);
+  assert.equal(j.daily.length, 14, '14-day series');
+  assert.ok(Array.isArray(j.recent) && j.recent.length >= 1);
+  assert.ok(j.recent[0].id && typeof j.recent[0].updated_at === 'number');
+});
+
+test('the analytics page is served at /analytics', async () => {
+  const r = await fetch(BASE + '/analytics');
+  assert.equal(r.status, 200);
+  assert.match(r.headers.get('content-type') || '', /text\/html/);
+  assert.match(await r.text(), /Analytics/);
+});

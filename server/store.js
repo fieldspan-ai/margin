@@ -225,6 +225,71 @@ export async function setStatus(id, commentId, status) {
   return c;
 }
 
+// Aggregate usage analytics across every document — backend-agnostic (reads the
+// same listRecords() the index uses). Returns snake_case wire fields. "Agent
+// sessions" (distinct owner.session_id) is the closest thing to a unique-user
+// count: agents own docs under a session identity, while reviewers are anonymous.
+export async function stats({ days = 14, recent = 8 } = {}) {
+  const recs = await backend.listRecords();
+  const now = Date.now();
+  const DAY = 24 * 60 * 60 * 1000;
+  const dayKey = (ts) => new Date(ts).toISOString().slice(0, 10); // UTC yyyy-mm-dd
+
+  const totals = {
+    documents: 0, versions: 0, comments: 0, open_comments: 0,
+    resolved_comments: 0, replies: 0, agent_sessions: 0,
+  };
+  const activity = {
+    docs_last_7d: 0, docs_last_30d: 0, comments_last_7d: 0,
+    active_docs_7d: 0, last_activity: 0,
+  };
+  const sessions = new Set();
+  // Pre-seed the last `days` buckets (oldest→newest) so quiet days render as zero.
+  const buckets = new Map();
+  for (let i = days - 1; i >= 0; i--) buckets.set(dayKey(now - i * DAY), { docs: 0, comments: 0 });
+
+  for (const d of recs) {
+    totals.documents++;
+    totals.versions += d.currentVersion || (Array.isArray(d.versions) ? d.versions.length : 0);
+    const owner = d.owner || {};
+    if (owner.session_id) sessions.add(String(owner.session_id));
+
+    const created = d.createdAt
+      || (Array.isArray(d.versions) && d.versions[0] && d.versions[0].createdAt)
+      || d.updatedAt || now;
+    if (now - created < 7 * DAY) activity.docs_last_7d++;
+    if (now - created < 30 * DAY) activity.docs_last_30d++;
+    if (d.updatedAt && now - d.updatedAt < 7 * DAY) activity.active_docs_7d++;
+    if ((d.updatedAt || 0) > activity.last_activity) activity.last_activity = d.updatedAt || 0;
+    const cb = buckets.get(dayKey(created)); if (cb) cb.docs++;
+
+    for (const c of (d.comments || [])) {
+      totals.comments++;
+      if (c.status === 'resolved') totals.resolved_comments++; else totals.open_comments++;
+      totals.replies += Array.isArray(c.replies) ? c.replies.length : 0;
+      if (c.createdAt && now - c.createdAt < 7 * DAY) activity.comments_last_7d++;
+      const bb = c.createdAt && buckets.get(dayKey(c.createdAt)); if (bb) bb.comments++;
+    }
+  }
+  totals.agent_sessions = sessions.size;
+
+  const daily = [...buckets.entries()].map(([date, v]) => ({ date, docs: v.docs, comments: v.comments }));
+  const recentDocs = recs
+    .slice()
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .slice(0, recent)
+    .map((d) => ({
+      id: d.id,
+      title: d.title || d.id,
+      version: d.currentVersion || 0,
+      comments: (d.comments || []).length,
+      open_comments: (d.comments || []).filter((c) => c.status === 'open').length,
+      updated_at: d.updatedAt || 0,
+    }));
+
+  return { totals, activity, daily, recent: recentDocs, generated_at: now };
+}
+
 // Agent-facing shape: just the threads it needs to act on.
 export async function getComments(id, { status } = {}) {
   const doc = await readDoc(id);
