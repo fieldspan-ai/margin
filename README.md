@@ -39,6 +39,7 @@ prompt" fallback. Routes:
 | Route | Serves |
 |-------|--------|
 | `/` | landing + onboarding (owners with `REVIEWER_TOKEN` still get the docs index here) |
+| `/analytics` | owner usage dashboard — docs, comments, agent sessions, 14-day activity (see `MARGIN_OWNER_PASSWORD`) |
 | `/skill.md` | the raw skill (`SKILL.md`), `__BASE_URL__` substituted to this host |
 | `/install.sh` | one-line installer for `curl -fsSL …/install.sh \| sh` |
 
@@ -139,6 +140,12 @@ and persists it to the store, so an instance needs zero configured secrets.
 - **`REVIEWER_TOKEN`** (optional) — an **owner master**: full read + the docs
   index, for bootstrapping your own devices. **`AGENT_API_KEY`** (optional) — a
   global agent key that can publish to any id.
+- **`MARGIN_OWNER_PASSWORD`** (optional) — gates the usage dashboard at
+  `/analytics` behind the browser's native **HTTP Basic Auth** login
+  (username `owner`, override with `MARGIN_OWNER_USER`). A valid login is an owner
+  master, same scope as `REVIEWER_TOKEN`. Unset = the dashboard falls back to the
+  in-page token gate. Only the analytics routes are challenged; public review links
+  stay open.
 - Open create is rate-limited per IP (`MARGIN_CREATE_MAX` per `MARGIN_CREATE_WINDOW`
   seconds) on KV-backed deploys; ids are unguessable so nothing is enumerable.
 
@@ -214,6 +221,7 @@ wired so a push to `main` deploys to your project (e.g.
    | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | injected by the KV integration | yes (auto) |
    | `MARGIN_SECRET` | `openssl rand -hex 32` | optional — self-provisioned into KV if unset |
    | `AGENT_API_KEY` / `REVIEWER_TOKEN` | `openssl rand -hex 24` | optional — global agent key / owner master |
+   | `MARGIN_OWNER_PASSWORD` | `openssl rand -hex 16` | optional — Basic-Auth login for the `/analytics` dashboard |
 
    With agent-first auth, **no keys are required** — the agent self-provisions per
    document. Set `MARGIN_SECRET` if you want signing to survive a KV reset; set the

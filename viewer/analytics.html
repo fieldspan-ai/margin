@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Margin · Analytics</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<style>
+  :root{
+    --bg:#0f1115;--panel:#161922;--panel-2:#1d212c;--line:#2a2f3d;
+    --ink:#e8eaf0;--ink-dim:#9aa3b2;--ink-faint:#6b7382;
+    --human:#34d3b5;--agent:#8b7bff;--agent-2:#b9aaff;
+    --accent:#ffd166;--shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  button{font-family:inherit;cursor:pointer}
+
+  .topbar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#1a1e29,#161922);position:sticky;top:0;z-index:5}
+  .logo{display:flex;align-items:center;gap:8px;font-weight:700;text-decoration:none;color:inherit}
+  .logo .dot{width:20px;height:20px;border-radius:6px;background:linear-gradient(135deg,var(--agent),var(--human));display:grid;place-items:center;color:#0b0d12;font-weight:900;font-size:12px}
+  .title{font-weight:600}
+  .topbar .spacer{flex:1}
+  .backlink{font-size:13px;color:var(--ink-dim);text-decoration:none;border:1px solid var(--line);background:var(--panel-2);padding:5px 11px;border-radius:20px}
+  .backlink:hover{color:var(--ink);border-color:var(--agent)}
+
+  .wrap{max-width:920px;margin:0 auto;padding:20px 16px 56px}
+  .sub{color:var(--ink-faint);font-size:12.5px;margin:2px 2px 18px}
+
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .card{border:1px solid var(--line);background:var(--panel-2);border-radius:14px;padding:14px 15px}
+  .card .k{font-size:12px;color:var(--ink-faint);display:flex;align-items:center;gap:6px}
+  .card .v{font-size:30px;font-weight:750;letter-spacing:-.02em;margin-top:6px;line-height:1.05}
+  .card .s{font-size:11.5px;color:var(--ink-faint);margin-top:5px}
+  .dotc{width:8px;height:8px;border-radius:3px;display:inline-block}
+  .dotc.agent{background:var(--agent)}.dotc.human{background:var(--human)}.dotc.accent{background:var(--accent)}.dotc.ink{background:var(--ink-dim)}
+
+  .section{margin-top:26px}
+  .section h2{font-size:13px;font-weight:650;color:var(--ink-dim);margin:0 0 10px;text-transform:uppercase;letter-spacing:.05em}
+  .pane{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:16px}
+
+  /* 14-day activity chart */
+  .chart{display:flex;align-items:flex-end;gap:6px;height:140px;padding-top:6px}
+  .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;height:100%;min-width:0}
+  .bars{width:100%;max-width:26px;display:flex;flex-direction:column;justify-content:flex-end;height:100%;border-radius:5px 5px 0 0;overflow:hidden;background:rgba(255,255,255,.03)}
+  .seg{width:100%}
+  .seg.docs{background:linear-gradient(180deg,var(--agent-2),var(--agent))}
+  .seg.comments{background:linear-gradient(180deg,#5ff0d2,var(--human))}
+  .col .lbl{font-size:9.5px;color:var(--ink-faint);white-space:nowrap}
+  .legend{display:flex;gap:16px;margin-top:12px;font-size:12px;color:var(--ink-dim)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;color:var(--ink-faint);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;padding:0 10px 9px;border-bottom:1px solid var(--line)}
+  td{padding:11px 10px;border-bottom:1px solid var(--line)}
+  tr:last-child td{border-bottom:0}
+  td a{text-decoration:none;font-weight:600}
+  td a:hover{color:var(--agent-2)}
+  .num{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-dim)}
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:20px;background:rgba(255,209,102,.14);color:var(--accent)}
+  .muted{color:var(--ink-faint)}
+
+  .state{text-align:center;color:var(--ink-faint);padding:64px 18px}
+  .state h3{color:var(--ink-dim);margin:0 0 6px}
+  .btn{border:0;border-radius:9px;padding:9px 14px;font-size:13px;font-weight:600;background:var(--human);color:#063a32}
+  .btn.mut{background:var(--panel-2);color:var(--ink-dim);border:1px solid var(--line)}
+
+  /* token gate */
+  .gate{position:fixed;inset:0;background:rgba(8,10,15,.92);z-index:80;display:none;align-items:center;justify-content:center;padding:24px}
+  .gate.on{display:flex}
+  .gate .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;max-width:420px;width:100%}
+  .gate h3{margin:0 0 6px}.gate p{color:var(--ink-dim);font-size:13px;margin:0 0 12px}
+  .gate input{width:100%;background:#10131b;border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:9px;font:14px inherit;margin-bottom:10px}
+
+  @media(max-width:720px){
+    .cards{grid-template-columns:repeat(2,1fr)}
+    .col .lbl{display:none}
+    .col:nth-child(odd) .lbl{display:block}
+    th.hide,td.hide{display:none}
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <a class="logo" href="/"><span class="dot">M</span><span class="title">Analytics</span></a>
+    <span class="spacer"></span>
+    <a class="backlink" href="/">← Documents</a>
+  </div>
+
+  <div class="wrap" id="wrap">
+    <div class="state" id="loading"><h3>Loading analytics…</h3></div>
+    <div id="content" style="display:none"></div>
+  </div>
+
+  <div class="gate" id="gate"><div class="box">
+    <h3>Owner access</h3>
+    <p>Analytics is a private, owner-only view across every document. Paste your owner reviewer token to continue.</p>
+    <input id="tokenInput" placeholder="owner reviewer token" autocomplete="off" />
+    <button class="btn" id="tokenGo">Open analytics</button>
+  </div></div>
+
+<script nonce="__CSP_NONCE__">
+(function(){
+  "use strict";
+  var $=function(s){return document.querySelector(s)};
+
+  function esc(s){return (s||'').replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]});}
+  function nf(n){return (n==null?0:n).toLocaleString();}
+  function ago(ts){
+    if(!ts)return 'never';
+    var m=Math.round((Date.now()-ts)/60000);
+    if(m<1)return 'just now'; if(m<60)return m+'m ago';
+    var h=Math.round(m/60); if(h<24)return h+'h ago';
+    return Math.round(h/24)+'d ago';
+  }
+
+  function gate(){ $('#gate').classList.add('on'); }
+  $('#tokenGo').addEventListener('click',function(){
+    var v=($('#tokenInput').value||'').trim(); if(!v)return;
+    // Hand the token to the server via the magic-link flow: it lands in the
+    // httpOnly cookie and redirects back to a clean /analytics URL.
+    location.href='/analytics?token='+encodeURIComponent(v);
+  });
+  $('#tokenInput').addEventListener('keydown',function(e){ if(e.key==='Enter') $('#tokenGo').click(); });
+
+  function fail(html){
+    $('#loading').style.display='none';
+    var c=$('#content'); c.style.display='block';
+    c.innerHTML='<div class="state">'+html+'</div>';
+  }
+
+  function card(k, dot, v, s){
+    return '<div class="card"><div class="k">'+(dot?'<span class="dotc '+dot+'"></span>':'')+esc(k)+'</div>'+
+      '<div class="v">'+v+'</div>'+(s?'<div class="s">'+s+'</div>':'')+'</div>';
+  }
+
+  function chart(daily){
+    var max=1;
+    daily.forEach(function(d){ max=Math.max(max, d.docs+d.comments); });
+    var cols=daily.map(function(d){
+      var total=d.docs+d.comments;
+      var dh=Math.round(d.docs/max*100), ch=Math.round(d.comments/max*100);
+      var day=d.date.slice(8); // dd
+      var title=d.date+' — '+d.docs+' doc'+(d.docs===1?'':'s')+', '+d.comments+' comment'+(d.comments===1?'':'s');
+      return '<div class="col" title="'+esc(title)+'">'+
+        '<div class="bars">'+
+          (ch?'<div class="seg comments" style="height:'+ch+'%"></div>':'')+
+          (dh?'<div class="seg docs" style="height:'+dh+'%"></div>':'')+
+        '</div><div class="lbl">'+esc(day)+'</div></div>';
+    }).join('');
+    return '<div class="pane"><div class="chart">'+cols+'</div>'+
+      '<div class="legend"><span><span class="dotc agent"></span>Documents created</span>'+
+      '<span><span class="dotc human"></span>Comments left</span></div></div>';
+  }
+
+  function recentTable(rows){
+    if(!rows.length) return '<div class="pane"><div class="muted">No documents yet.</div></div>';
+    return '<div class="pane" style="padding:6px 6px 2px"><table>'+
+      '<thead><tr><th>Document</th><th class="num">Version</th><th class="num">Comments</th><th class="num hide">Open</th><th class="num">Updated</th></tr></thead><tbody>'+
+      rows.map(function(d){
+        return '<tr><td><a href="/d/'+encodeURIComponent(d.id)+'">'+esc(d.title)+'</a></td>'+
+          '<td class="num">v'+nf(d.version)+'</td>'+
+          '<td class="num">'+nf(d.comments)+'</td>'+
+          '<td class="num hide">'+(d.open_comments?'<span class="pill">'+d.open_comments+'</span>':'<span class="muted">0</span>')+'</td>'+
+          '<td class="num">'+esc(ago(d.updated_at))+'</td></tr>';
+      }).join('')+'</tbody></table></div>';
+  }
+
+  function render(s){
+    var t=s.totals, a=s.activity;
+    var avg=t.documents?(t.comments/t.documents):0;
+    var html='';
+    html+='<div class="sub">Usage across every document on this Margin instance · refreshed '+esc(ago(s.generated_at))+'</div>';
+
+    html+='<div class="cards">'+
+      card('Documents','agent', nf(t.documents), nf(a.docs_last_7d)+' new this week')+
+      card('Agent sessions','accent', nf(t.agent_sessions), 'distinct publishers')+
+      card('Comments','human', nf(t.comments), nf(t.open_comments)+' open · '+nf(t.resolved_comments)+' resolved')+
+      card('Versions published','ink', nf(t.versions), avg.toFixed(1)+' comments / doc')+
+    '</div>';
+
+    html+='<div class="section"><h2>Activity</h2><div class="cards">'+
+      card('New docs · 7d', null, nf(a.docs_last_7d), '')+
+      card('New docs · 30d', null, nf(a.docs_last_30d), '')+
+      card('Comments · 7d', null, nf(a.comments_last_7d), '')+
+      card('Active docs · 7d', null, nf(a.active_docs_7d), 'updated recently')+
+    '</div></div>';
+
+    html+='<div class="section"><h2>Last 14 days</h2>'+chart(s.daily||[])+'</div>';
+
+    html+='<div class="section"><h2>Recently updated</h2>'+recentTable(s.recent||[])+'</div>';
+
+    html+='<div class="sub" style="margin-top:18px">“Agent sessions” counts distinct publishing identities (one per agent run); reviewers comment anonymously, so people who only review aren’t counted here.</div>';
+
+    $('#loading').style.display='none';
+    var c=$('#content'); c.style.display='block'; c.innerHTML=html;
+  }
+
+  function load(){
+    // Same-origin: the owner's httpOnly margin_token cookie rides along.
+    fetch('/api/stats',{headers:{'Content-Type':'application/json'}}).then(function(r){
+      if(r.status===401||r.status===403){ gate(); throw new Error('auth'); }
+      if(!r.ok) throw new Error('failed');
+      return r.json();
+    }).then(render).catch(function(e){
+      if(e&&e.message==='auth') return;
+      fail('<h3>Couldn’t load analytics</h3><p class="muted">The server may be unreachable.</p><button class="btn mut" id="retry">Retry</button>');
+      var b=$('#retry'); if(b) b.onclick=function(){ $('#content').style.display='none'; $('#loading').style.display='block'; load(); };
+    });
+  }
+  load();
+})();
+</script>
+</body>
+</html>

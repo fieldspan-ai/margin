@@ -36,6 +36,14 @@ const AGENT_API_KEY = process.env.AGENT_API_KEY || '';
 const REVIEWER_TOKEN = process.env.REVIEWER_TOKEN || '';
 const AGENT_NAME = process.env.AGENT_NAME || 'Claude';
 const REVIEWER_NAME = process.env.REVIEWER_NAME || 'Reviewer';
+// Optional owner password. When set, the analytics dashboard (/analytics) and its
+// data (/api/stats) accept HTTP Basic Auth as an owner-master credential — so the
+// browser's own native login dialog gates the dashboard with no extra UI to build.
+// Independent of AGENT_API_KEY / REVIEWER_TOKEN, so it works in agent-first mode too.
+// Unset = disabled (the dashboard then falls back to the token gate, as before).
+const OWNER_PASSWORD = process.env.MARGIN_OWNER_PASSWORD || '';
+const OWNER_USER = process.env.MARGIN_OWNER_USER || 'owner';
+const BASIC_REALM = 'Margin analytics';
 // On Vercel, VERCEL_URL is the deployment host; PUBLIC_BASE_URL (a stable
 // production domain) wins when set so reviewer links stay constant across deploys.
 const PUBLIC_BASE_URL = (
@@ -126,7 +134,30 @@ function safeEqual(a, b) {
   const bh = crypto.createHash('sha256').update(String(b)).digest();
   return crypto.timingSafeEqual(ah, bh);
 }
+// HTTP Basic Auth as an owner-master credential (gates the analytics dashboard).
+// Only active when MARGIN_OWNER_PASSWORD is set; matches grant the same all-scope
+// owner role as REVIEWER_TOKEN. The username defaults to 'owner'. Comparisons are
+// constant-time (safeEqual hashes both sides to a fixed length).
+function basicOwner(req) {
+  if (!OWNER_PASSWORD) return null;
+  const m = (req.headers['authorization'] || '').match(/^Basic\s+(.+)$/i);
+  if (!m) return null;
+  let decoded;
+  try { decoded = Buffer.from(m[1], 'base64').toString('utf8'); } catch { return null; }
+  const i = decoded.indexOf(':');
+  if (i < 0) return null;
+  const user = decoded.slice(0, i);
+  const pass = decoded.slice(i + 1);
+  if (safeEqual(user, OWNER_USER) && safeEqual(pass, OWNER_PASSWORD)) {
+    return { role: 'owner', scope: 'all', author: { identity: 'human', name: REVIEWER_NAME } };
+  }
+  return null;
+}
 function identify(req, u) {
+  // The owner password (Basic Auth) is checked first — it uses the Authorization
+  // header's Basic scheme, which tokenFrom (Bearer/x-api-key) never consumes.
+  const b = basicOwner(req);
+  if (b) return b;
   const t = tokenFrom(req, u);
   if (!t) return null;
   // If configured, the agent key is a global host secret: full access, can publish
@@ -303,6 +334,22 @@ export async function handle(req, res) {
       if (u.pathname === '/llms.txt') return serveTextAsset(res, 'llms.txt', 'text/plain; charset=utf-8');
       // Bundled landing-page images (og/social card + in-page showcase).
       if (parts[0] === 'assets' && parts.length === 2) return serveAsset(res, parts[1]);
+      // Owner analytics dashboard. Its data (/api/stats) is always owner-scoped.
+      // When MARGIN_OWNER_PASSWORD is set we challenge the page navigation itself
+      // with HTTP Basic Auth, so the browser shows its native login dialog and
+      // then auto-attaches the credentials to the page's /api/stats fetch. With no
+      // password set, the shell loads and falls back to the in-page token gate.
+      if (u.pathname === '/analytics') {
+        if (OWNER_PASSWORD && !(identify(req, u)?.scope === 'all')) {
+          res.writeHead(401, {
+            'www-authenticate': `Basic realm="${BASIC_REALM}", charset="UTF-8"`,
+            'content-type': 'text/plain; charset=utf-8',
+            ...CORS,
+          });
+          return res.end('Authentication required');
+        }
+        return serveHtmlPage(res, 'analytics.html', { fallback: () => serveViewer(res) });
+      }
       // Magic link: ?token rides in the URL once, then we move it into an httpOnly
       // cookie and redirect to a clean URL so it never sits in history or reaches
       // page JS. (decision #2)
@@ -377,6 +424,16 @@ export async function handle(req, res) {
       const visible = auth.scope === 'all' ? all : all.filter((d) => d.id === auth.doc);
       const docs = visible.map((d) => ({ ...d, url: reviewerUrl(d.id) }));
       return sendJSON(res, 200, { docs });
+    }
+
+    // /api/stats  (GET) — aggregate usage analytics. Owner-only: a global view
+    // across every document, so it requires all-scope (the owner-master reviewer
+    // token or the global agent key), not a per-document reviewer link.
+    if (parts[1] === 'stats' && parts.length === 2 && method === 'GET') {
+      if (auth.scope !== 'all') {
+        return sendJSON(res, 403, { error: 'analytics is owner-only', hint: 'open /analytics with the owner reviewer token' });
+      }
+      return sendJSON(res, 200, await store.stats());
     }
 
     const docId = parts[2];
