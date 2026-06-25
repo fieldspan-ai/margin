@@ -37,6 +37,7 @@ function normalize(d) {
   if (!d) return null;
   if (!Array.isArray(d.versions)) d.versions = [];
   if (!Array.isArray(d.comments)) d.comments = [];
+  if (!Array.isArray(d.decisions)) d.decisions = [];
   return d;
 }
 async function readDoc(id) { return normalize(await backend.getRecord(id)); }
@@ -46,6 +47,12 @@ async function readHtml(id, v, versionObj) {
   const h = await backend.getHtml(id, v);
   if (h != null) return h;
   return (versionObj && typeof versionObj.html === 'string') ? versionObj.html : '';
+}
+// Read a version's interactive decision-widget HTML (parallel to readHtml). The
+// decision payload is optional, so a missing slot returns ''.
+export async function readDecisionHtml(id, v) {
+  const h = await backend.getDecisionHtml?.(id, v);
+  return h != null ? h : '';
 }
 
 // --- self-provisioning signing secret ---
@@ -67,7 +74,7 @@ export async function getSigningSecret() {
 // Create a document under a server-assigned, unguessable id (agent-first: the
 // caller never picks the id, so ids aren't enumerable). An optional human-readable
 // hint becomes a slug prefix purely for legibility; the random suffix is the security.
-export async function createDoc({ title, html, summary, author, idHint } = {}) {
+export async function createDoc({ title, html, summary, author, idHint, decisionHtml } = {}) {
   const slug = (idHint || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24).replace(/-+$/, '');
   let id;
   for (let i = 0; i < 6; i++) {
@@ -75,7 +82,7 @@ export async function createDoc({ title, html, summary, author, idHint } = {}) {
     id = slug ? `${slug}-${rand}` : `d-${rand}`;
     if (!(await backend.getRecord(id))) break;
   }
-  const r = await publish(id, { title, html, summary, author });
+  const r = await publish(id, { title, html, summary, author, decisionHtml });
   return { docId: id, version: r.version };
 }
 
@@ -121,11 +128,16 @@ export async function getDocView(id) {
       v: v.v, author: v.author, summary: v.summary, createdAt: v.createdAt,
     })),
     comments: (d.comments || []).map((c) => ({ ...c, resolved: resolveAnchor(c.anchor, currentBlocks) })),
+    // Decisions are NOT text-anchored — no anchor resolution. The viewer renders
+    // the interactive widget in its own iframe and confirms the chosen value.
+    hasDecision: !!d.decisionVersion,
+    decisionVersion: d.decisionVersion || null,
+    decisions: d.decisions || [],
     updatedAt: d.updatedAt,
   };
 }
 
-export async function publish(id, { title, html, author, summary }) {
+export async function publish(id, { title, html, author, summary, decisionHtml }) {
   let doc = await readDoc(id);
   const now = Date.now();
   if (!doc) {
@@ -136,6 +148,7 @@ export async function publish(id, { title, html, author, summary }) {
       currentVersion: 0,
       versions: [],
       comments: [],
+      decisions: [],
       createdAt: now,
       updatedAt: now,
     };
@@ -155,6 +168,13 @@ export async function publish(id, { title, html, author, summary }) {
   await backend.putHtml(id, v, proc.html);
   doc.currentBlocks = proc.blocks;
   doc.nextBlockNum = proc.nextBlockNum;
+  // Optional interactive decision-widget payload: persisted out-of-row per
+  // version (like the review HTML, but untouched by block-id processing — it
+  // runs as its own script-enabled document, not anchored content).
+  if (typeof decisionHtml === 'string' && decisionHtml.length) {
+    await backend.putDecisionHtml(id, v, decisionHtml);
+    doc.decisionVersion = v;
+  }
   doc.versions.push({
     v,
     author: author || doc.owner,
@@ -243,6 +263,51 @@ export async function getComments(id, { status } = {}) {
       author: (c.author?.name || 'unknown') + ' (' + (c.author?.identity || '?') + ')',
       body: c.body,
       replies: c.replies.map((r) => ({ author: (r.author?.name || 'unknown') + ' (' + (r.author?.identity || '?') + ')', body: r.body })),
+    })),
+  };
+}
+
+// --- decisions (the interactive-widget answer channel) ---
+// A decision is the user's committed choice from an interactive playground. It
+// is NOT text-anchored: it carries an opaque `value` (whatever the widget
+// submitted) and an optional human-readable `label`. Mirrors addComment.
+export async function addDecision(id, { value, label, author }) {
+  const doc = await readDoc(id);
+  if (!doc) return null;
+  const d = {
+    id: uid('dec'),
+    value: value === undefined ? null : value,
+    label: label || null,
+    version: doc.currentVersion,
+    author,
+    createdAt: Date.now(),
+  };
+  doc.decisions.push(d);
+  await writeDoc(doc);
+  return d;
+}
+
+// Agent-facing shape: the decisions it needs to act on. Optional `since` returns
+// only decisions recorded after the given decision id. Mirrors getComments.
+export async function getDecisions(id, { since } = {}) {
+  const doc = await readDoc(id);
+  if (!doc) return null;
+  let ds = doc.decisions || [];
+  if (since) {
+    const i = ds.findIndex((d) => d.id === since);
+    if (i >= 0) ds = ds.slice(i + 1);
+  }
+  return {
+    docId: id,
+    title: doc.title,
+    version: doc.currentVersion,
+    decisions: ds.map((d) => ({
+      id: d.id,
+      value: d.value,
+      label: d.label,
+      version: d.version,
+      author: (d.author?.name || 'unknown') + ' (' + (d.author?.identity || '?') + ')',
+      createdAt: d.createdAt,
     })),
   };
 }
