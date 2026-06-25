@@ -22,6 +22,9 @@
   .logo .dot{width:20px;height:20px;border-radius:6px;background:linear-gradient(135deg,var(--agent),var(--human));display:grid;place-items:center;color:#0b0d12;font-weight:900;font-size:12px}
   .title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
   .vbadge{font-size:11px;color:var(--agent-2);background:rgba(139,123,255,.12);border:1px solid rgba(139,123,255,.3);padding:2px 8px;border-radius:20px;cursor:pointer}
+  .feedback{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-dim);background:var(--panel-2);border:1px solid var(--line);padding:3px 9px;border-radius:20px;text-decoration:none;white-space:nowrap;flex:0 0 auto}
+  .feedback:hover{color:var(--ink);border-color:var(--human)}
+  .feedback .ico{font-size:12px;line-height:1}
   .ids{display:flex;gap:6px}
   .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel-2);padding:3px 8px 3px 3px;border-radius:30px;font-size:12px;color:var(--ink-dim);cursor:pointer}
   .ava{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;color:#06120f}
@@ -131,6 +134,7 @@
   @media(max-width:760px){
     .stage{grid-template-columns:1fr}
     .ids .chip .nm{display:none}
+    .feedback .nm{display:none}
     /* --kb (set from JS via the VisualViewport API) lifts the drawer above the
        soft keyboard and shrinks it to fit, so the composer stays visible. */
     .rail{position:fixed;left:0;right:0;bottom:var(--kb,0px);z-index:40;max-height:min(80vh,calc(100vh - var(--kb,0px) - 12px));border-left:0;border-top:1px solid var(--line);border-radius:18px 18px 0 0;transform:translateY(calc(100% - 50px));transition:transform .28s ease,bottom .2s ease;box-shadow:0 -14px 40px rgba(0,0,0,.45)}
@@ -152,6 +156,7 @@
     <div class="logo"><span class="dot">M</span></div>
     <span class="title" id="title">Loading…</span>
     <span class="vbadge" id="vbadge" title="Version history">v–</span>
+    <a class="feedback" id="feedback" title="Send feedback"><span class="ico">✉</span><span class="nm">Feedback</span></a>
     <div class="ids" id="ids"></div>
   </div>
 
@@ -282,19 +287,40 @@
     iframe.srcdoc=state.doc.html||'<p style="font-family:sans-serif;color:#888;padding:24px">Empty document.</p>';
   }
 
+  // Resolve the anchored block from a selection range. A selection that spans
+  // multiple blocks (or starts/ends right at an element boundary) has a
+  // commonAncestorContainer ABOVE any block — closest() from there finds nothing,
+  // so the comment bar never appears. Try the block at the selection START first
+  // (the intuitive anchor), then its END, then fall back to the common ancestor.
+  function closestBlock(node){
+    if(!node) return null;
+    var el=node.nodeType===3?node.parentElement:node;
+    return el&&el.closest?el.closest('[data-block-id]'):null;
+  }
+  function edgeNode(container,offset){
+    // Descend an element container to the child the selection edge actually sits on.
+    if(container&&container.nodeType===1){
+      return container.childNodes[offset]||container.childNodes[offset-1]||container;
+    }
+    return container;
+  }
+  function blockFromRange(range){
+    return closestBlock(edgeNode(range.startContainer,range.startOffset))
+      || closestBlock(edgeNode(range.endContainer,range.endOffset))
+      || closestBlock(range.commonAncestorContainer);
+  }
+
   function wireDocEvents(idoc){
     var iwin=$('#doc').contentWindow;
     // Snapshot the selection into state.candidate on every change, so moving focus
     // to the comment textarea (which collapses the selection) doesn't lose it.
     function snapshot(){
       var sel=iwin.getSelection();
-      if(!sel||sel.isCollapsed){ if(!state.pending) hideSelbtn(); return; }
+      if(!sel||sel.isCollapsed||!sel.rangeCount){ if(!state.pending) hideSelbtn(); return; }
       var text=sel.toString().replace(/\s+/g,' ').trim();
       if(text.length<2){ hideSelbtn(); return; }
       var range=sel.getRangeAt(0);
-      var node=range.commonAncestorContainer;
-      var el=(node.nodeType===3?node.parentElement:node);
-      el=el&&el.closest('[data-block-id]');
+      var el=blockFromRange(range);
       if(!el){ hideSelbtn(); return; }
       state.candidate={block_id:el.getAttribute('data-block-id'),block_text:el.textContent.trim().slice(0,4000),quote:text,block_type:el.tagName.toLowerCase()};
       showSelbtn(range);
@@ -428,6 +454,20 @@
     else if(act==='resolve'){ setStatus(cid,'resolved'); }
     else if(act==='reopen'){ setStatus(cid,'open'); }
     else if(act==='delete'){ removeComment(cid); }
+  });
+
+  // Cmd/Ctrl+Enter submits the focused composer or reply (Enter alone keeps
+  // inserting newlines, so multi-line comments still work).
+  $('#railBody').addEventListener('keydown',function(e){
+    if(e.key!=='Enter'||!(e.metaKey||e.ctrlKey))return;
+    var ta=e.target;
+    if(ta.id==='newText'){
+      e.preventDefault();
+      var v=(ta.value||'').trim(); if(v)postComment(v);
+    } else if(ta.dataset&&ta.dataset.reply){
+      e.preventDefault();
+      var rv=(ta.value||'').trim(); if(rv)postReply(ta.dataset.reply,rv);
+    }
   });
 
   function focusCard(cid){openDrawer();var el=$('#card_'+cid);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('pulse');setTimeout(function(){el.classList.remove('pulse')},1200);} }
@@ -587,6 +627,17 @@
       }).join('')+'</div>';
   }
   $('.logo').addEventListener('click',function(){ location.href='/'; });
+
+  // ---- feedback ----
+  // A plain mailto: so it works with no backend and respects the scripts-off
+  // CSP. We prefill the subject/body with the current page so feedback arrives
+  // with context (which document, what version) already attached.
+  (function(){
+    var a=$('#feedback'); if(!a)return;
+    var subject='Margin feedback'+(docId?(' — '+docId):'');
+    var body='\n\n---\nPage: '+location.href+'\nUA: '+navigator.userAgent;
+    a.href='mailto:orr@fieldspan.ai?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
+  })();
 
   // ---- boot ----
   function boot(){
