@@ -300,14 +300,20 @@ export async function getComments(id, { status } = {}) {
     docId: id,
     title: doc.title,
     version: doc.currentVersion,
-    threads: cs.map((c) => ({
-      id: c.id,
-      status: c.status,
-      version: c.version,
-      anchor: { block_id: c.anchor.block_id || c.anchor.block_mid || null, quote: c.anchor.quote || null, block_text: c.anchor.block_text || null, block_type: c.anchor.block_type || null },
-      author: (c.author?.name || 'unknown') + ' (' + (c.author?.identity || '?') + ')',
-      body: c.body,
-      replies: c.replies.map((r) => ({ author: (r.author?.name || 'unknown') + ' (' + (r.author?.identity || '?') + ')', body: r.body })),
-    })),
+    threads: cs.map((c) => {
+      const blockId = c.anchor.block_id || c.anchor.block_mid || null;
+      return {
+        id: c.id,
+        status: c.status,
+        version: c.version,
+        // 'document' = a file-level comment with no block anchor at all (left via
+        // the viewer's "+ Comment" button); 'block' = anchored to a specific span.
+        scope: blockId ? 'block' : 'document',
+        anchor: { block_id: blockId, quote: c.anchor.quote || null, block_text: c.anchor.block_text || null, block_type: c.anchor.block_type || null },
+        author: (c.author?.name || 'unknown') + ' (' + (c.author?.identity || '?') + ')',
+        body: c.body,
+        replies: c.replies.map((r) => ({ author: (r.author?.name || 'unknown') + ' (' + (r.author?.identity || '?') + ')', body: r.body })),
+      };
+    }),
   };
 }

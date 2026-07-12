@@ -12,8 +12,18 @@
 // brand-new id and never steals a comment. Pure + dependency-free so it can be
 // unit-tested in isolation.
 
-// Block-level elements a comment can anchor to (mirrors the viewer's selection set).
-const BLOCK_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li', 'blockquote', 'pre', 'figcaption', 'td', 'th']);
+// Block-level elements a comment can anchor to. Beyond the classic prose tags,
+// agent-generated HTML (dashboards, cards, Tailwind-style layouts) very often
+// puts standalone text straight in a <div>/<section> with no <p>/<li> wrapper at
+// all — that text got no data-block-id and was silently "not commentable" from
+// the viewer. Generic containers are included so any standalone text has SOME
+// anchorable ancestor; deliberately excludes purely inline tags (span, a, b, em,
+// strong, ...) since those normally sit inside an already-anchorable block and
+// including them would fragment one paragraph into several disconnected blocks.
+const BLOCK_TAGS = new Set([
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li', 'blockquote', 'pre', 'figcaption', 'td', 'th',
+  'div', 'section', 'article', 'header', 'footer', 'aside', 'dt', 'dd', 'summary', 'details', 'address', 'caption',
+]);
 
 // Carry a comment's id forward only when the block is clearly still the same.
 const MATCH_THRESHOLD = 0.7;

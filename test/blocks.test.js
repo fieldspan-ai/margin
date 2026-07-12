@@ -42,6 +42,30 @@ test('scanBlocks handles optional-end-tag HTML (implicit close)', () => {
   assert.deepEqual(blocks.map((b) => norm(b.text)), ['a', 'b', 'x', 'y']);
 });
 
+// Regression: agent-generated HTML very often puts standalone text straight in a
+// <div>/<section> with no <p>/<li> wrapper (cards, KPI tiles, dashboards). That
+// text must get a data-block-id like any other block, or it's silently
+// "not commentable" from the viewer (nothing for closest('[data-block-id]') to find).
+test('div/section text with no <p> wrapper is anchorable', () => {
+  const html = '<div class="card"><div class="title">Revenue</div><div class="value">$1.2M</div></div>'
+    + '<section>Some prose in a section, not a p.</section>';
+  const r = processPublish([], html, 1);
+  assert.match(r.html, /<div data-block-id="b1" class="card">/);
+  assert.match(r.html, /<div data-block-id="b2" class="title">/);
+  assert.match(r.html, /<div data-block-id="b3" class="value">/);
+  assert.match(r.html, /<section data-block-id="b4">/);
+  assert.deepEqual(r.blocks.map((b) => b.t), ['', 'revenue', '$1.2m', 'some prose in a section, not a p.']);
+});
+
+// Inline styling tags (span, b, em, ...) stay OUT of BLOCK_TAGS: they normally sit
+// inside an already-anchorable block, and making them block-level would fragment
+// one paragraph into several disconnected blocks instead of one selectable whole.
+test('an inline <span> inside a paragraph does not fragment the block', () => {
+  const r = processPublish([], '<p>Revenue grew <span class="hl">18%</span> this quarter.</p>', 1);
+  assert.deepEqual(r.blocks.map((b) => b.id), ['b1']);
+  assert.equal(r.blocks[0].t, 'revenue grew 18% this quarter.');
+});
+
 test('processPublish injects ids and preserves visible text', () => {
   const r = processPublish([], '<h1>Title</h1><p class="x">Body</p>', 1);
   assert.match(r.html, /<h1 data-block-id="b1">Title<\/h1>/);

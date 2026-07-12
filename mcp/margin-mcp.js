@@ -90,6 +90,9 @@ function shapeComments(docId, out, isWait) {
     id: t.id,
     status: t.status,
     version: t.version,
+    // 'document' = general feedback on the whole document (no block anchor);
+    // 'block' = anchored to a specific span (see anchored_to).
+    scope: t.scope || ((t.anchor && t.anchor.block_id) ? 'block' : 'document'),
     anchored_to: {
       quote: (t.anchor && t.anchor.quote) || null,
       block_text: (t.anchor && t.anchor.block_text) || null,
@@ -138,7 +141,7 @@ server.registerTool('margin_publish', {
 server.registerTool('margin_get_comments', {
   title: 'Read reviewer comments',
   description:
-    "Fetch the human reviewer's anchored comments for a document so the agent can act on them. Each thread includes the quoted span and the block it anchors to.",
+    "Fetch the human reviewer's comments for a document so the agent can act on them. Each thread includes the quoted span and block it anchors to (scope: 'block'), or is general feedback on the document as a whole with no anchor (scope: 'document').",
   inputSchema: {
     doc_id: z.string().describe('The document slug.'),
     status: z.enum(['open', 'resolved', 'all']).optional().describe('Filter by status. Default: open.'),

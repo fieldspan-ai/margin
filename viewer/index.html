@@ -38,6 +38,8 @@
   .railhead{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
   .railhead .t{font-weight:650}
   .count{font-size:11px;color:var(--ink-faint);background:var(--panel-2);border:1px solid var(--line);padding:1px 7px;border-radius:20px}
+  .headbtn{margin-left:auto;background:transparent;border:1px solid var(--line);color:var(--ink-dim);font-size:11.5px;font-weight:650;padding:4px 10px;border-radius:20px;white-space:nowrap}
+  .headbtn:hover{color:var(--ink);border-color:var(--agent)}
   .railbody{padding:12px;overflow:auto;display:flex;flex-direction:column;gap:10px}
   .empty{color:var(--ink-faint);font-size:13px;line-height:1.6;text-align:center;padding:32px 16px}
 
@@ -55,6 +57,7 @@
   .tag.h{background:rgba(52,211,181,.16);color:#5ff0d2}
   .when{margin-left:auto;font-size:11px;color:var(--ink-faint)}
   .qline{font-size:12px;color:var(--ink-dim);border-left:2px solid var(--accent);padding-left:8px;margin:2px 0 7px}
+  .qline.doclevel{border-left-color:var(--ink-faint);color:var(--ink-faint);font-style:italic}
   .body{font-size:13.5px;color:var(--ink);white-space:pre-wrap}
   .status{font-size:10px;font-weight:700;padding:1px 7px;border-radius:20px}
   .status.open{background:rgba(255,209,102,.14);color:var(--accent)}
@@ -169,7 +172,7 @@
     </div>
     <div class="rail" id="rail">
       <div class="drawerhandle" id="drawerHandle">Comments</div>
-      <div class="railhead"><span class="t">Threads</span><span class="count" id="count">0 open</span></div>
+      <div class="railhead"><span class="t">Threads</span><span class="count" id="count">0 open</span><button class="headbtn" id="newDocComment" title="Leave a comment about the document as a whole">+ Comment</button></div>
       <div class="railbody" id="railBody"></div>
     </div>
   </div>
@@ -372,6 +375,17 @@
   // Keep it glued to the selection while the doc scrolls.
   window.addEventListener('scroll',function(){ if($('#selbtn').classList.contains('on')&&!state.pending){var s=$('#doc').contentWindow.getSelection();if(s&&!s.isCollapsed){try{showSelbtn(s.getRangeAt(0));}catch(e){}}} },true);
 
+  // "+ Comment" in the rail header starts a comment with no block anchor at all —
+  // feedback on the document as a whole (e.g. "looks great overall") rather than
+  // a specific span. Same composer/post-new flow as a text-selection comment; an
+  // empty anchor is what tells the server (and resolveAnchor) this isn't a block
+  // comment, so it never shows up as "orphaned".
+  $('#newDocComment').addEventListener('click',function(){
+    state.candidate=null; state.pending={}; state.draft=''; hideSelbtn();
+    openDrawer(); renderThreads();
+    var ta=$('#newText'); if(ta){ ta.focus(); try{ta.scrollIntoView({block:'center'});}catch(e){} }
+  });
+
   // ---- identity + version ui ----
   function renderIds(){
     var d=state.doc; var owner=d.owner||{name:'agent',identity:'agent'};
@@ -418,7 +432,8 @@
     $('#count').textContent=cs.filter(function(c){return c.status==='open'}).length+' open';
     var html='';
     if(state.pending){
-      html+='<div class="newcard"><div class="q">Commenting on: “'+esc(state.pending.quote)+'”</div>'+
+      var pq=state.pending.quote;
+      html+='<div class="newcard"><div class="q">'+(pq?('Commenting on: “'+esc(pq)+'”'):'General comment on the whole document')+'</div>'+
         '<textarea id="newText" placeholder="Leave a comment for the agent…"></textarea>'+
         '<div class="row"><button class="btn primary" data-act="post-new">Comment</button><button class="btn mut" data-act="cancel-new">Cancel</button></div></div>';
     }
@@ -426,9 +441,12 @@
       var A=authorBits(c.author);
       var reps=(c.replies||[]).map(function(r){var R=authorBits(r.author);
         return '<div class="reply"><div class="meta"><span class="miniava '+R.cls+'">'+R.ini+'</span><span class="who">'+esc(R.name)+'<span class="tag '+R.cls+'">'+R.tag+'</span></span></div><div class="body">'+esc(r.body)+'</div></div>';}).join('');
+      var quoteLine=(c.anchor&&c.anchor.quote)
+        ?('<div class="qline">“'+esc(c.anchor.quote)+'”'+(isOrphan?' · <span style="color:#c9a23a">anchor lost</span>':(c.resolved&&c.resolved.soft?' · <span style="color:#c9a23a">moved/edited</span>':''))+'</div>')
+        :(!hadAnchor(c)?'<div class="qline doclevel">General comment · whole document</div>':'');
       return '<div class="card '+c.status+(isOrphan?' orphan':'')+'" id="card_'+c.id+'">'+
         '<div class="meta"><span class="miniava '+A.cls+'">'+A.ini+'</span><span class="who">'+esc(A.name)+'<span class="tag '+A.cls+'">'+A.tag+'</span></span><span class="when">'+ago(c.createdAt)+'</span></div>'+
-        (c.anchor&&c.anchor.quote?'<div class="qline">“'+esc(c.anchor.quote)+'”'+(isOrphan?' · <span style="color:#c9a23a">anchor lost</span>':(c.resolved&&c.resolved.soft?' · <span style="color:#c9a23a">moved/edited</span>':''))+'</div>':'')+
+        quoteLine+
         '<div class="body">'+esc(c.body)+'</div>'+(reps?'<div class="replies">'+reps+'</div>':'')+
         '<div class="cardacts"><span class="status '+c.status+'">'+c.status+'</span>'+
         (c.status==='open'?'<button class="linkbtn" data-act="toggle-reply" data-cid="'+c.id+'">Reply</button><button class="linkbtn" data-act="resolve" data-cid="'+c.id+'">Resolve</button>':'<button class="linkbtn" data-act="reopen" data-cid="'+c.id+'">Reopen</button>')+
@@ -438,7 +456,7 @@
     html+=open.map(function(c){return card(c,false)}).join('');
     if(orphan.length){html+='<div style="font-size:11px;color:#c9a23a;margin-top:2px">Anchor moved (doc changed)</div>'+orphan.map(function(c){return card(c,true)}).join('');}
     if(resolved.length){html+='<div style="font-size:11px;color:var(--ink-faint);margin-top:2px">Resolved</div>'+resolved.map(function(c){return card(c,false)}).join('');}
-    if(!cs.length&&!state.pending){html+='<div class="empty">No comments yet.<br>Select any text in the document to leave one.</div>';}
+    if(!cs.length&&!state.pending){html+='<div class="empty">No comments yet.<br>Select any text in the document, or use “+ Comment” above for feedback on the whole document.</div>';}
     $('#railBody').innerHTML=html;
     // Keep the in-progress comment alive across re-renders (persist its text).
     var nt=$('#newText'); if(nt){ nt.value=state.draft||''; nt.oninput=function(){ state.draft=nt.value; }; }
