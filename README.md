@@ -62,7 +62,8 @@ npm start        # → prints a reviewer link
 ```
 
 Open the printed `http://localhost:8787/d/demo?token=…` link. You'll see the
-rendered document with a comment rail. Select text and leave a comment.
+rendered document with a comment rail. Select text and leave a comment, or use
+the rail's "+ Comment" button for feedback on the document as a whole.
 
 ## Publish from an agent
 
@@ -93,7 +94,7 @@ Tools:
 | Tool | Purpose |
 |------|---------|
 | `margin_publish(html, doc_id?, title?, summary?)` | First call (no `doc_id`) creates the doc and returns a reviewer `url`; pass `doc_id` to revise. |
-| `margin_get_comments(doc_id, status?)` | Read anchored comments (`open` \| `resolved` \| `all`). |
+| `margin_get_comments(doc_id, status?)` | Read comments (`open` \| `resolved` \| `all`) — each thread's `scope` is `block` (anchored) or `document` (general feedback). |
 | `margin_resolve_comment(doc_id, comment_id)` | Mark a comment resolved. |
 | `margin_wait_for_comments(doc_id, since_version?)` | Block up to ~25s for new comments — a review gate instead of busy-polling. |
 | `margin_review_link(doc_id, expires_in_days?)` | Mint a fresh (optionally expiring) reviewer link. |
