@@ -668,5 +668,22 @@
   boot();
 })();
 </script>
+<!-- Vercel Web Analytics — first-party pageview beacon. Both tags carry the
+     per-response nonce so the strict `script-src 'nonce-…'` CSP admits them with
+     no loosening; the beacon posts to same-origin /_vercel/insights/view (already
+     covered by `connect-src 'self'`), and Vercel's edge serves /_vercel/* ahead
+     of the catch-all rewrite in vercel.json. -->
+<script nonce="__CSP_NONCE__">
+  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  // Defense in depth: reviewer magic links carry a capability token in `?token=`.
+  // The server already 302-strips it into an httpOnly cookie before this page
+  // loads (see server/app.js), but we drop it here too so a token can never reach
+  // analytics even if that flow changes. Other params (e.g. utm_*) are kept.
+  window.va('beforeSend', function (event) {
+    try { var u = new URL(event.url); u.searchParams.delete('token'); event.url = u.toString(); } catch (e) {}
+    return event;
+  });
+</script>
+<script defer nonce="__CSP_NONCE__" src="/_vercel/insights/script.js"></script>
 </body>
 </html>
