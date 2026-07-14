@@ -31,15 +31,35 @@
   .ava.a{background:linear-gradient(135deg,var(--agent-2),var(--agent));color:#0c0a23}
   .ava.h{background:linear-gradient(135deg,#5ff0d2,#34d3b5)}
 
-  .stage{flex:1;display:grid;grid-template-columns:1fr 360px;min-height:0}
+  /* Desktop rail width is driven by --rail-w so it can be dragged; the grid
+     animates when collapsing but not while actively dragging (see .rail-resizing). */
+  .stage{flex:1;display:grid;grid-template-columns:1fr var(--rail-w,360px);min-height:0;transition:grid-template-columns .18s ease}
+  body.rail-collapsed .stage{grid-template-columns:1fr 0}
+  body.rail-resizing .stage{transition:none}
+  /* while dragging the seam, don't let the doc iframe swallow the mouse move */
+  body.rail-resizing{cursor:col-resize;user-select:none}
+  body.rail-resizing iframe#doc{pointer-events:none}
   .docwrap{background:#fff;overflow:hidden;position:relative}
   iframe#doc{width:100%;height:100%;border:0;background:#fff}
-  .rail{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  .rail{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;position:relative;min-width:0}
+  /* draggable seam on the rail's left edge (desktop only) */
+  .railresize{position:absolute;left:-3px;top:0;bottom:0;width:7px;z-index:6;cursor:col-resize;touch-action:none}
+  .railresize:before{content:"";position:absolute;left:2px;top:0;bottom:0;width:2px;background:transparent;transition:background .12s}
+  .railresize:hover:before,body.rail-resizing .railresize:before{background:var(--agent)}
+  body.rail-collapsed .railresize{display:none}
   .railhead{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
   .railhead .t{font-weight:650}
   .count{font-size:11px;color:var(--ink-faint);background:var(--panel-2);border:1px solid var(--line);padding:1px 7px;border-radius:20px}
   .headbtn{margin-left:auto;background:transparent;border:1px solid var(--line);color:var(--ink-dim);font-size:11.5px;font-weight:650;padding:4px 10px;border-radius:20px;white-space:nowrap}
   .headbtn:hover{color:var(--ink);border-color:var(--agent)}
+  /* collapse chevron in the rail header */
+  .railcollapse{background:transparent;border:1px solid var(--line);color:var(--ink-dim);font-size:14px;line-height:1;font-weight:700;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex:0 0 auto}
+  .railcollapse:hover{color:var(--ink);border-color:var(--agent)}
+  /* vertical tab that reappears on the right edge when collapsed (desktop only) */
+  .railreopen{display:none}
+  body.rail-collapsed .railreopen{display:flex;align-items:center;gap:8px;position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:38;writing-mode:vertical-rl;background:var(--panel-2);color:var(--ink-dim);border:1px solid var(--line);border-right:0;border-radius:10px 0 0 10px;padding:14px 7px;font-size:12px;font-weight:650;letter-spacing:.02em;box-shadow:var(--shadow)}
+  body.rail-collapsed .railreopen:hover{color:var(--ink);border-color:var(--agent)}
+  .railreopen .rc{writing-mode:horizontal-tb;font-size:10px;color:var(--ink-faint);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:1px 6px}
   .railbody{padding:12px;overflow:auto;display:flex;flex-direction:column;gap:10px}
   .empty{color:var(--ink-faint);font-size:13px;line-height:1.6;text-align:center;padding:32px 16px}
 
@@ -138,6 +158,9 @@
   /* mobile */
   @media(max-width:760px){
     .stage{grid-template-columns:1fr}
+    /* desktop-only affordances — the mobile rail is a bottom drawer instead */
+    .railresize,.railcollapse{display:none!important}
+    body.rail-collapsed .railreopen{display:none}
     .ids .chip .nm{display:none}
     .feedback .nm{display:none}
     /* --kb (set from JS via the VisualViewport API) lifts the drawer above the
@@ -171,10 +194,12 @@
       <div class="docmsg" id="docMsg"></div>
     </div>
     <div class="rail" id="rail">
+      <div class="railresize" id="railResize" title="Drag to resize · double-click to reset"></div>
       <div class="drawerhandle" id="drawerHandle">Comments</div>
-      <div class="railhead"><span class="t">Threads</span><span class="count" id="count">0 open</span><button class="headbtn" id="newDocComment" title="Leave a comment about the document as a whole">+ Comment</button></div>
+      <div class="railhead"><span class="t">Threads</span><span class="count" id="count">0 open</span><button class="headbtn" id="newDocComment" title="Leave a comment about the document as a whole">+ Comment</button><button class="railcollapse" id="railCollapse" title="Collapse comments">»</button></div>
       <div class="railbody" id="railBody"></div>
     </div>
+    <button class="railreopen" id="railReopen" title="Show comments">Comments<span class="rc" id="reopenCount">0</span></button>
   </div>
 
   <div id="indexView"></div>
@@ -429,7 +454,9 @@
     var open=cs.filter(function(c){return c.status==='open'&&!isOrphan(c)});
     var orphan=cs.filter(function(c){return c.status==='open'&&isOrphan(c)});
     var resolved=cs.filter(function(c){return c.status==='resolved'});
-    $('#count').textContent=cs.filter(function(c){return c.status==='open'}).length+' open';
+    var openCount=cs.filter(function(c){return c.status==='open'}).length;
+    $('#count').textContent=openCount+' open';
+    var rc=$('#reopenCount'); if(rc) rc.textContent=openCount;
     var html='';
     if(state.pending){
       var pq=state.pending.quote;
@@ -497,6 +524,48 @@
   // The handle is a toggle; the scrim and ✕ both close.
   $('#drawerHandle').addEventListener('click',function(){document.body.classList.toggle('drawer-open');});
   $('#scrim').addEventListener('click',closeDrawer);
+
+  // ---- desktop rail: drag-to-resize + collapse (persisted) ----
+  // Only meaningful on desktop; on mobile the rail is a bottom drawer and the
+  // seam / chevron / reopen-tab are hidden by CSS.
+  (function(){
+    var LS_W='margin_rail_w', LS_C='margin_rail_collapsed', MINW=260, DEFW=360;
+    var root=document.documentElement;
+    // fall back to a sane width if innerWidth reads 0 (e.g. before first paint) so
+    // a persisted width is never destructively clamped down to the minimum.
+    function winW(){ return window.innerWidth || document.documentElement.clientWidth || 1280; }
+    function maxW(){ return Math.max(MINW, Math.min(760, Math.round(winW()*0.72))); }
+    function applyW(w){ w=Math.max(MINW, Math.min(maxW(), Math.round(w))); root.style.setProperty('--rail-w', w+'px'); return w; }
+    function curW(){ return parseInt(root.style.getPropertyValue('--rail-w'),10)||DEFW; }
+    function prefW(){ try{ return parseInt(localStorage.getItem(LS_W),10)||0; }catch(e){ return 0; } }
+    function setCollapsed(on){ document.body.classList.toggle('rail-collapsed', on); try{localStorage.setItem(LS_C, on?'1':'0');}catch(e){} }
+
+    // restore persisted preferences
+    try{ var sw=parseInt(localStorage.getItem(LS_W),10); if(sw) applyW(sw);
+         if(localStorage.getItem(LS_C)==='1') document.body.classList.add('rail-collapsed'); }catch(e){}
+
+    var cbtn=$('#railCollapse'), rbtn=$('#railReopen'), handle=$('#railResize'), dragging=false;
+    if(cbtn) cbtn.addEventListener('click',function(){ setCollapsed(true); });
+    if(rbtn) rbtn.addEventListener('click',function(){ setCollapsed(false); });
+
+    function pointX(e){ return e.touches&&e.touches[0]?e.touches[0].clientX:e.clientX; }
+    function onMove(e){ if(!dragging)return; applyW(window.innerWidth - pointX(e)); e.preventDefault(); }
+    function onUp(){ if(!dragging)return; dragging=false; document.body.classList.remove('rail-resizing');
+      try{localStorage.setItem(LS_W, curW());}catch(e){}
+      window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp);
+      window.removeEventListener('touchmove',onMove); window.removeEventListener('touchend',onUp); }
+    function onDown(e){ if(isMobile())return; dragging=true; document.body.classList.add('rail-resizing');
+      window.addEventListener('mousemove',onMove); window.addEventListener('mouseup',onUp);
+      window.addEventListener('touchmove',onMove,{passive:false}); window.addEventListener('touchend',onUp); e.preventDefault(); }
+    if(handle){
+      handle.addEventListener('mousedown',onDown);
+      handle.addEventListener('touchstart',onDown,{passive:false});
+      handle.addEventListener('dblclick',function(){ applyW(DEFW); try{localStorage.setItem(LS_W,DEFW);}catch(e){} });
+    }
+    // reflow to the preferred width (clamped to the new viewport) on window resize,
+    // so it shrinks to fit a narrow window yet springs back when there's room again.
+    window.addEventListener('resize',function(){ applyW(prefW()||curW()); });
+  })();
 
   // Keyboard-aware drawer: the VisualViewport shrinks when the soft keyboard
   // opens, but position:fixed elements don't move — so the composer ends up
