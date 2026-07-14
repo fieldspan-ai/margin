@@ -207,7 +207,10 @@
   var docId=(path[0]==='d'&&path[1])?decodeURIComponent(path[1]):(new URLSearchParams(location.search).get('doc')||'');
   try{localStorage.removeItem('margin_token');}catch(e){} // purge any token left by pre-cookie builds
 
-  var state={doc:null, midMap:{}, pending:null, candidate:null, draft:''};
+  // reply: map of commentId -> in-progress reply text. Presence of a key means
+  // that comment's reply box is open. Persisted here so a re-render (the 5s poll,
+  // an SSE update) can't eat a reply the reviewer is still typing.
+  var state={doc:null, midMap:{}, pending:null, candidate:null, draft:'', reply:{}};
   var selPoll=null; // mobile: poll the iframe selection (selectionchange is unreliable there)
 
   function headers(){return {'Content-Type':'application/json'};}
@@ -439,6 +442,7 @@
     }
     function card(c,isOrphan){
       var A=authorBits(c.author);
+      var rOpen=(c.id in state.reply), rVal=rOpen?state.reply[c.id]:'';
       var reps=(c.replies||[]).map(function(r){var R=authorBits(r.author);
         return '<div class="reply"><div class="meta"><span class="miniava '+R.cls+'">'+R.ini+'</span><span class="who">'+esc(R.name)+'<span class="tag '+R.cls+'">'+R.tag+'</span></span></div><div class="body">'+esc(r.body)+'</div></div>';}).join('');
       var quoteLine=(c.anchor&&c.anchor.quote)
@@ -451,7 +455,7 @@
         '<div class="cardacts"><span class="status '+c.status+'">'+c.status+'</span>'+
         (c.status==='open'?'<button class="linkbtn" data-act="toggle-reply" data-cid="'+c.id+'">Reply</button><button class="linkbtn" data-act="resolve" data-cid="'+c.id+'">Resolve</button>':'<button class="linkbtn" data-act="reopen" data-cid="'+c.id+'">Reopen</button>')+
         (A.cls==='h'?'<button class="linkbtn danger" data-act="delete" data-cid="'+c.id+'">Remove</button>':'')+'</div>'+
-        '<div class="replybox" id="rb_'+c.id+'"><textarea data-reply="'+c.id+'" placeholder="Reply…"></textarea><div class="row"><button class="btn primary" data-act="post-reply" data-cid="'+c.id+'">Reply</button></div></div></div>';
+        '<div class="replybox'+(rOpen?' on':'')+'" id="rb_'+c.id+'"><textarea data-reply="'+c.id+'" placeholder="Reply…">'+esc(rVal)+'</textarea><div class="row"><button class="btn primary" data-act="post-reply" data-cid="'+c.id+'">Reply</button></div></div></div>';
     }
     html+=open.map(function(c){return card(c,false)}).join('');
     if(orphan.length){html+='<div style="font-size:11px;color:#c9a23a;margin-top:2px">Anchor moved (doc changed)</div>'+orphan.map(function(c){return card(c,true)}).join('');}
@@ -460,6 +464,11 @@
     $('#railBody').innerHTML=html;
     // Keep the in-progress comment alive across re-renders (persist its text).
     var nt=$('#newText'); if(nt){ nt.value=state.draft||''; nt.oninput=function(){ state.draft=nt.value; }; }
+    // Same for reply boxes: mirror each keystroke into state.reply so an open
+    // reply survives a re-render with its text intact.
+    [].slice.call($('#railBody').querySelectorAll('textarea[data-reply]')).forEach(function(t){
+      t.oninput=function(){ state.reply[t.dataset.reply]=t.value; };
+    });
   }
 
   $('#railBody').addEventListener('click',function(e){
@@ -469,7 +478,7 @@
       var v=($('#newText').value||'').trim(); if(!v)return;
       postComment(v);
     } else if(act==='cancel-new'){ state.pending=null; state.draft=''; renderThreads(); if(isMobile())closeDrawer(); }
-    else if(act==='toggle-reply'){ $('#rb_'+cid).classList.toggle('on'); var ta=document.querySelector('[data-reply="'+cid+'"]'); if(ta)ta.focus(); }
+    else if(act==='toggle-reply'){ var rbx=$('#rb_'+cid), opening=!rbx.classList.contains('on'); rbx.classList.toggle('on'); var ta=document.querySelector('[data-reply="'+cid+'"]'); if(opening){ state.reply[cid]=state.reply[cid]||''; if(ta)ta.focus(); } else { delete state.reply[cid]; } }
     else if(act==='post-reply'){ var ta2=document.querySelector('[data-reply="'+cid+'"]'); var rv=(ta2.value||'').trim(); if(rv)postReply(cid,rv); }
     else if(act==='resolve'){ setStatus(cid,'resolved'); }
     else if(act==='reopen'){ setStatus(cid,'open'); }
@@ -518,7 +527,12 @@
   }
   function postReply(cid,body){
     fetch(api+'/docs/'+encodeURIComponent(docId)+'/comments/'+cid+'/replies',{method:'POST',headers:headers(),body:JSON.stringify({body:body})})
-      .then(function(){return load()}).catch(function(){toast('Failed');});
+      .then(function(r){if(!r.ok)throw 0;return load();})
+      // Drop this reply's draft, then render explicitly (load()'s own render is
+      // skipped while the box counts as open), so the new reply shows and the
+      // box closes — while any other open reply draft is preserved.
+      .then(function(){delete state.reply[cid];renderThreads();toast('Reply sent');})
+      .catch(function(){toast('Failed to reply');});
   }
   function removeComment(cid){
     var c=(state.doc.comments||[]).find(function(x){return x.id===cid});
@@ -554,9 +568,10 @@
       state.doc=d; renderIds();
       if(d.html!==lastHtml){ lastHtml=d.html; renderDoc(); } // re-render iframe only when HTML changed
       else { var idoc=$('#doc').contentDocument; if(idoc&&idoc.body){indexBlocks(idoc);highlightComments(idoc);} }
-      // Don't rebuild the rail while a comment is being written — it would
-      // destroy the open composer (and drop focus/keyboard) mid-typing.
-      if(!state.pending) renderThreads();
+      // Don't rebuild the rail while a comment OR a reply is being written — it
+      // would destroy the open composer/reply box (and drop focus/keyboard)
+      // mid-typing. The 5s poll below hits this path on every tick.
+      if(!state.pending && !Object.keys(state.reply).length) renderThreads();
     });
   }
   // doc load states — no more frozen "Loading…" or swallowed errors
