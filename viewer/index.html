@@ -450,6 +450,11 @@
 
   // ---- threads ----
   function authorBits(a){a=a||{};var agent=a.identity==='agent';return{cls:agent?'a':'h',tag:agent?'agent':'you',ini:agent?'✦':'YOU',name:a.name||'?'};}
+  // Only a textarea the user is actively typing in needs to survive a rail
+  // rebuild undisturbed (a rebuild blurs it, dismissing the mobile keyboard).
+  // Focus is transient, so unlike tracking "is any reply box open" this can
+  // never permanently freeze the rail.
+  function replyFocused(){ var a=document.activeElement; return !!(a && a.matches && a.matches('textarea[data-reply]')); }
   function renderThreads(){
     var cs=state.doc.comments||[];
     function hadAnchor(c){return !!(c.anchor&&(c.anchor.block_id||c.anchor.block_mid||c.anchor.block_text));}
@@ -596,11 +601,19 @@
   }
   function postReply(cid,body){
     fetch(api+'/docs/'+encodeURIComponent(docId)+'/comments/'+cid+'/replies',{method:'POST',headers:headers(),body:JSON.stringify({body:body})})
-      .then(function(r){if(!r.ok)throw 0;return load();})
-      // Drop this reply's draft, then render explicitly (load()'s own render is
-      // skipped while the box counts as open), so the new reply shows and the
-      // box closes — while any other open reply draft is preserved.
-      .then(function(){delete state.reply[cid];renderThreads();toast('Reply sent');})
+      .then(function(r){
+        if(r.status===401){gate();return;} // keep the draft; same handling as load()'s 401
+        if(!r.ok){toast('Failed to reply');return;} // keep the draft so the user can retry
+        delete state.reply[cid];
+        // Blur in case this came from the Cmd+Enter shortcut (focus would
+        // otherwise still be in the textarea), so load()'s focus-based guard
+        // doesn't skip the rebuild that closes the box and shows the reply.
+        var ta=document.querySelector('textarea[data-reply="'+cid+'"]'); if(ta)ta.blur();
+        toast('Reply sent');
+        // The reply is already saved server-side — a failure here is just a
+        // stale view, not a failed reply, so don't relabel it as one.
+        load().catch(function(){});
+      })
       .catch(function(){toast('Failed to reply');});
   }
   function removeComment(cid){
@@ -637,10 +650,11 @@
       state.doc=d; renderIds();
       if(d.html!==lastHtml){ lastHtml=d.html; renderDoc(); } // re-render iframe only when HTML changed
       else { var idoc=$('#doc').contentDocument; if(idoc&&idoc.body){indexBlocks(idoc);highlightComments(idoc);} }
-      // Don't rebuild the rail while a comment OR a reply is being written — it
-      // would destroy the open composer/reply box (and drop focus/keyboard)
-      // mid-typing. The 5s poll below hits this path on every tick.
-      if(!state.pending && !Object.keys(state.reply).length) renderThreads();
+      // Don't rebuild the rail while the new-comment composer is open, or while
+      // a reply textarea is actively focused — a rebuild would drop keyboard
+      // focus mid-typing. An open-but-unfocused reply box still rebuilds; its
+      // draft text survives via state.reply + card()'s rOpen/rVal restore.
+      if(!state.pending && !replyFocused()) renderThreads();
     });
   }
   // doc load states — no more frozen "Loading…" or swallowed errors
