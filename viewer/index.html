@@ -184,6 +184,7 @@
     <div class="logo"><span class="dot">M</span></div>
     <span class="title" id="title">Loading…</span>
     <span class="vbadge" id="vbadge" title="Version history">v–</span>
+    <a class="feedback" href="/queue" title="Your review queue"><span class="ico">☰</span><span class="nm">Queue</span></a>
     <a class="feedback" id="feedback" title="Send feedback"><span class="ico">✉</span><span class="nm">Feedback</span></a>
     <div class="ids" id="ids"></div>
   </div>
@@ -735,7 +736,7 @@
   function renderIndex(docs){
     var box=$('#indexView');
     if(!docs.length){ box.innerHTML='<div class="idxwrap"><div class="idxempty"><h3>No documents yet</h3><p>When your agent publishes HTML for review, it shows up here.</p></div></div>'; return; }
-    box.innerHTML='<div class="idxwrap"><div class="idxhead">Documents <span class="count">'+docs.length+'</span><a class="anlink" href="/analytics">Analytics →</a></div>'+
+    box.innerHTML='<div class="idxwrap"><div class="idxhead">Documents <span class="count">'+docs.length+'</span><a class="anlink" href="/queue">Queue →</a><a class="anlink" href="/analytics" style="margin-left:0">Analytics →</a></div>'+
       docs.map(function(d){
         var open=d.openComments||0;
         return '<a class="doccard" href="/d/'+encodeURIComponent(d.id)+'">'+
