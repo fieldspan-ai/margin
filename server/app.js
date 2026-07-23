@@ -18,7 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadDotenv } from './config.js';
 import * as store from './store.js';
-import { verify as verifyToken, mintToken } from './tokens.js';
+import { verify as verifyToken, mintToken, mintSession, verifySession } from './tokens.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -78,6 +78,10 @@ const LINK_TTL_MS = LINK_TTL_DAYS > 0 ? LINK_TTL_DAYS * 24 * 60 * 60 * 1000 : 0;
 const CREATE_RATE_MAX = parseInt(process.env.MARGIN_CREATE_MAX || '30', 10);       // new docs ...
 const CREATE_RATE_WINDOW_SEC = parseInt(process.env.MARGIN_CREATE_WINDOW || '3600', 10); // ... per IP per window
 
+// /api/queue is public and does a full-store scan — limit refreshes per IP.
+const QUEUE_RATE_MAX = parseInt(process.env.MARGIN_QUEUE_MAX || '120', 10);
+const QUEUE_RATE_WINDOW_SEC = parseInt(process.env.MARGIN_QUEUE_WINDOW || '300', 10);
+
 // Long-poll window for /wait. Keep it safely under the function's maxDuration
 // (see vercel.json). On serverless there is no shared memory between the
 // publisher and the waiter, so /wait polls the store instead of being notified.
@@ -127,6 +131,19 @@ function tokenFrom(req, u) {
   if (u.searchParams.get('token')) return u.searchParams.get('token');
   return null;
 }
+// The anonymous reviewer identity — a signed session token in the margin_rid
+// cookie (see tokens.mintSession). No accounts: the rid is just "this browser",
+// and the per-person queue scopes to it. Returns the rid string or null.
+function ridFrom(req) {
+  const cookies = parseCookies(req.headers['cookie']);
+  if (!cookies.margin_rid) return null;
+  return verifySession(cookies.margin_rid, SIGNING_SECRET)?.rid || null;
+}
+// Five years: the queue should follow the browser for as long as the browser lives.
+function ridCookie(sessionToken) {
+  const secure = PUBLIC_BASE_URL.startsWith('https') ? '; Secure' : '';
+  return `margin_rid=${encodeURIComponent(sessionToken)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=157680000${secure}`;
+}
 // Constant-time secret comparison (consistent with tokens.js verify). Hash both
 // sides to a fixed length so neither length nor content leaks via timing.
 function safeEqual(a, b) {
@@ -153,11 +170,19 @@ function basicOwner(req) {
   }
   return null;
 }
+// Human identities (never agents) carry the anonymous browser identity when the
+// margin_rid cookie is present, so their writes and review markers attribute to
+// the person, not just "a human" (see store.reviewQueue's per-rid scoping).
+function withRid(auth, req) {
+  const rid = ridFrom(req);
+  if (rid) auth.author.rid = rid;
+  return auth;
+}
 function identify(req, u) {
   // The owner password (Basic Auth) is checked first — it uses the Authorization
   // header's Basic scheme, which tokenFrom (Bearer/x-api-key) never consumes.
   const b = basicOwner(req);
-  if (b) return b;
+  if (b) return withRid(b, req);
   const t = tokenFrom(req, u);
   if (!t) return null;
   // If configured, the agent key is a global host secret: full access, can publish
@@ -168,17 +193,18 @@ function identify(req, u) {
   }
   // If configured, the reviewer token is the OWNER master: full read + the index.
   if (REVIEWER_TOKEN && safeEqual(t, REVIEWER_TOKEN)) {
-    return { role: 'owner', scope: 'all', author: { identity: 'human', name: REVIEWER_NAME } };
+    return withRid({ role: 'owner', scope: 'all', author: { identity: 'human', name: REVIEWER_NAME } }, req);
   }
   // Otherwise: a signed, document-scoped capability (a per-doc reviewer link, or a
   // scoped agent token). It only grants its own document.
   const payload = verifyToken(t, SIGNING_SECRET);
   if (payload && payload.d) {
     const role = payload.r === 'agent' ? 'agent' : 'reviewer';
-    const author = role === 'agent'
-      ? { identity: 'agent', name: AGENT_NAME, session_id: String(req.headers['x-agent-session'] || ('scoped:' + payload.d)) }
-      : { identity: 'human', name: REVIEWER_NAME };
-    return { role, scope: 'doc', doc: payload.d, author };
+    if (role === 'agent') {
+      const author = { identity: 'agent', name: AGENT_NAME, session_id: String(req.headers['x-agent-session'] || ('scoped:' + payload.d)) };
+      return { role, scope: 'doc', doc: payload.d, author };
+    }
+    return withRid({ role, scope: 'doc', doc: payload.d, author: { identity: 'human', name: REVIEWER_NAME } }, req);
   }
   return null;
 }
@@ -247,7 +273,9 @@ function broadcast(docId, ev) {
 // the actual host (the hosted deploy in prod, localhost in dev). `fonts` widens
 // style-src/font-src to Google Fonts (the landing uses the Fieldspan typefaces);
 // the viewer stays locked down ('self' only).
-function serveHtmlPage(res, file, { fallback, fonts } = {}) {
+// `headers` merges extra response headers into the 200 (e.g. the /queue page's
+// Set-Cookie for a freshly-minted reviewer session).
+function serveHtmlPage(res, file, { fallback, fonts, headers } = {}) {
   const nonce = crypto.randomBytes(16).toString('base64');
   let html;
   try { html = fs.readFileSync(path.join(VIEWER_DIR, file), 'utf8'); }
@@ -266,7 +294,7 @@ function serveHtmlPage(res, file, { fallback, fonts } = {}) {
     "base-uri 'none'",
     "form-action 'none'",
   ].filter(Boolean).join('; ');
-  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': csp, ...CORS });
+  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': csp, ...CORS, ...headers });
   res.end(html);
 }
 function serveViewer(res) { return serveHtmlPage(res, 'index.html'); }
@@ -360,13 +388,44 @@ export async function handle(req, res) {
         const headers = { location: u.pathname + (qs ? '?' + qs : ''), ...CORS };
         // Set the cookie for the owner master, the agent key, or any valid signed
         // (doc-scoped) token. An invalid token still gets stripped via the redirect.
-        const isValid = (REVIEWER_TOKEN && safeEqual(qtok, REVIEWER_TOKEN)) || (AGENT_API_KEY && safeEqual(qtok, AGENT_API_KEY)) || !!verifyToken(qtok, SIGNING_SECRET);
+        const payload = verifyToken(qtok, SIGNING_SECRET);
+        const isValid = (REVIEWER_TOKEN && safeEqual(qtok, REVIEWER_TOKEN)) || (AGENT_API_KEY && safeEqual(qtok, AGENT_API_KEY)) || !!payload;
         if (isValid) {
           const secure = PUBLIC_BASE_URL.startsWith('https') ? '; Secure' : '';
-          headers['set-cookie'] = `margin_token=${encodeURIComponent(qtok)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${secure}`;
+          const cookies = [`margin_token=${encodeURIComponent(qtok)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${secure}`];
+          // Opening a magic link is the moment a browser starts accumulating a
+          // queue: ensure the anonymous reviewer identity (rid) exists, and bind
+          // this doc to it ("you are what you've opened").
+          let rid = ridFrom(req);
+          if (!rid) {
+            const sess = mintSession(SIGNING_SECRET);
+            rid = verifySession(sess, SIGNING_SECRET).rid;
+            cookies.push(ridCookie(sess));
+          }
+          if (payload && payload.d) await store.bindReviewer(payload.d, rid);
+          headers['set-cookie'] = cookies.length > 1 ? cookies : cookies[0];
         }
         res.writeHead(302, headers);
         return res.end();
+      }
+      // Reviewer triage queue — PUBLIC: the page scopes itself to the visitor's
+      // anonymous rid cookie (minted here if the browser doesn't have one yet).
+      // Placed after the magic-link strip above so /queue?token=… lands the
+      // httpOnly cookie (and redirects to a clean /queue) before the page is
+      // served. Owner escape hatch: /queue?all=1 raises the same Basic challenge
+      // as /analytics, so the owner can force the global view from a fresh browser.
+      if (u.pathname === '/queue') {
+        if (u.searchParams.get('all') === '1' && OWNER_PASSWORD && !(identify(req, u)?.scope === 'all')) {
+          res.writeHead(401, {
+            'www-authenticate': `Basic realm="${BASIC_REALM}", charset="UTF-8"`,
+            'content-type': 'text/plain; charset=utf-8',
+            ...CORS,
+          });
+          return res.end('Authentication required');
+        }
+        const headers = {};
+        if (!ridFrom(req)) headers['set-cookie'] = ridCookie(mintSession(SIGNING_SECRET));
+        return serveHtmlPage(res, 'queue.html', { fallback: () => serveViewer(res), headers });
       }
       // AI/agent user agents hitting the root get the machine-readable landing.
       if (u.pathname === '/' && /claude|anthropic|openai|chatgpt|python-httpx|python-requests/i.test(req.headers['user-agent'] || '')) {
@@ -414,7 +473,35 @@ export async function handle(req, res) {
       });
     }
 
-    const auth = identify(req, u);
+    // /api/queue  (GET) — the reviewer's triage list. PUBLIC (no 401 — the page
+    // shows its own empty state): an all-scope credential gets the global view;
+    // everyone else gets THEIR docs, scoped to the anonymous rid cookie. Being
+    // public and a full-store scan, it's the one route worth rate-limiting by IP
+    // even though nothing here needs a credential (same IP extraction as create).
+    if (parts[1] === 'queue' && parts.length === 2 && method === 'GET') {
+      const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+        || req.socket?.remoteAddress || 'unknown';
+      if (!(await store.rateLimit('queue:' + ip, QUEUE_RATE_MAX, QUEUE_RATE_WINDOW_SEC))) {
+        return sendJSON(res, 429, { error: 'rate limited', hint: `at most ${QUEUE_RATE_MAX} queue refreshes per ${Math.round(QUEUE_RATE_WINDOW_SEC / 60)} min from one address` });
+      }
+      if (identify(req, u)?.scope === 'all') return sendJSON(res, 200, await store.reviewQueue());
+      const rid = ridFrom(req);
+      if (rid) return sendJSON(res, 200, await store.reviewQueue({ rid }));
+      return sendJSON(res, 200, { generated_at: Date.now(), scope: 'mine', items: [] });
+    }
+
+    let auth = identify(req, u);
+    // The margin_token cookie is single-slot — it holds only the LAST doc link
+    // this browser opened, but the queue lists every doc it ever opened. For doc
+    // routes, fall back to the anonymous rid: a browser bound to a doc (it opened
+    // that doc's reviewer link before) may act as its reviewer again.
+    const reqDocId = parts[1] === 'docs' && parts.length >= 3 ? parts[2] : null;
+    if (reqDocId && (!auth || (auth.scope === 'doc' && auth.doc !== reqDocId && auth.role === 'reviewer'))) {
+      const rid = ridFrom(req);
+      if (rid && await store.isBoundReviewer(reqDocId, rid)) {
+        auth = { role: 'reviewer', scope: 'doc', doc: reqDocId, author: { identity: 'human', name: REVIEWER_NAME, rid } };
+      }
+    }
     if (!auth) return sendJSON(res, 401, { error: 'unauthorized', hint: 'create a document with POST /api/docs, or pass a valid capability token' });
 
     // /api/docs
@@ -477,6 +564,11 @@ export async function handle(req, res) {
     if (parts[1] === 'docs' && parts.length === 3 && method === 'GET') {
       const view = await store.getDocView(docId);
       if (!view) return sendJSON(res, 404, { error: 'not found', doc_id: docId });
+      // Retroactive bind: a reviewer reading through a doc-scoped link claims the
+      // doc into their queue — covers links opened before the rid cookie existed.
+      if (auth.scope === 'doc' && auth.role === 'reviewer' && auth.author.rid) {
+        await store.bindReviewer(docId, auth.author.rid);
+      }
       view.url = reviewerUrl(docId);
       return sendJSON(res, 200, view);
     }
@@ -525,10 +617,22 @@ export async function handle(req, res) {
     if (parts[1] === 'docs' && parts[3] === 'comments' && parts[5] === 'status' && method === 'POST') {
       const body = await readBody(req);
       const status = body.status === 'resolved' ? 'resolved' : 'open';
-      const c = await store.setStatus(docId, parts[4], status);
+      const c = await store.setStatus(docId, parts[4], status, auth.author);
       if (!c) return sendJSON(res, 404, { error: 'not found', doc_id: docId });
       broadcast(docId, { type: 'status', commentId: parts[4], status, at: Date.now() });
       return sendJSON(res, 200, c);
+    }
+
+    // /api/docs/:id/reviewed  (owner/reviewer: mark the doc reviewed up to its
+    // current version — the queue's "Done"). An agent must never clear its own
+    // item from the reviewer's queue.
+    if (parts[1] === 'docs' && parts[3] === 'reviewed' && method === 'POST') {
+      if (auth.role !== 'owner' && auth.role !== 'reviewer') {
+        return sendJSON(res, 403, { error: 'only a reviewer can mark a document reviewed', doc_id: docId });
+      }
+      const r = await store.markReviewed(docId, { rid: ridFrom(req) });
+      if (!r) return sendJSON(res, 404, { error: 'not found', doc_id: docId });
+      return sendJSON(res, 200, r);
     }
 
     // /api/docs/:id/wait  (long-poll: block up to WAIT_MS for new comments — the
@@ -537,6 +641,10 @@ export async function handle(req, res) {
     if (parts[1] === 'docs' && parts[3] === 'wait' && method === 'GET') {
       const doc = await store.getDoc(docId);
       if (!doc) return sendJSON(res, 404, { error: 'not found', doc_id: docId });
+      // Stamp the queue's "agent waiting now" signal — agents only. Any bound
+      // reviewer can also hit /wait (e.g. a stray poll), and that must not fake
+      // an "agent waiting" pulse for every reviewer sharing the doc.
+      if (auth.role === 'agent') await store.noteAgentWait(docId);
       const sinceVersion = parseInt(u.searchParams.get('since_version') || '0', 10) || 0;
       const baseIds = new Set((doc.comments || []).map((c) => c.id));
       // New = an open thread that didn't exist when we started waiting, OR (catch-up)

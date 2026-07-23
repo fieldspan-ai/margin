@@ -40,6 +40,7 @@ prompt" fallback. Routes:
 |-------|--------|
 | `/` | landing + onboarding (owners with `REVIEWER_TOKEN` still get the docs index here) |
 | `/analytics` | owner usage dashboard — docs, comments, agent sessions, 14-day activity (see `MARGIN_OWNER_PASSWORD`) |
+| `/queue` | your review queue — every document where an agent is waiting on you (public, scoped to your browser; `?all=1` + owner password for the global view) |
 | `/skill.md` | the raw skill (`SKILL.md`), `__BASE_URL__` substituted to this host |
 | `/install.sh` | one-line installer for `curl -fsSL …/install.sh \| sh` |
 
@@ -125,6 +126,25 @@ Put that URL in `.env` as `PUBLIC_BASE_URL=https://…` and restart (`npm start`
 so the links the agent hands out are reachable. Open the magic link on your
 phone — the reviewer token is moved into an httpOnly cookie and stripped from
 the URL on first load.
+
+### The review queue
+
+`/queue` is the reviewer's triage list: every document sorted by whose turn it
+is. Each item is in one of four states — `awaiting_review` (a version you
+haven't seen), `needs_reply` (an agent replied on an open thread),
+`waiting_on_agent` (the ball is with the agent), or `clear`. Commenting,
+replying, or resolving a thread implicitly marks the document reviewed up to its
+current version; the queue's **Done** button does the same explicitly.
+
+The queue is **per-person**: it follows your browser via an anonymous httpOnly
+identity — no login. Opening a review link once adds that doc to your queue on
+that device from then on. The owner still gets the global view across every
+document (owner credentials, or `/queue?all=1` with the owner password). Opening a review link once is enough — docs in your queue stay clickable from that browser even after you open other links. This binding is permanent per browser: link expiry (`MARGIN_LINK_TTL_DAYS`, or a link's `expires_in_days`) only limits how long the *URL* itself can be opened by someone new — it doesn't revoke a browser that already opened the link once.
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/queue` | Your queue items + states (owner credentials get the global `scope: 'all'` view). |
+| `POST /api/docs/:id/reviewed` | Mark a document reviewed up to its current version (reviewer/owner — never an agent). |
 
 ## Access tokens (dynamic, per-document, self-provisioning)
 
@@ -223,6 +243,7 @@ wired so a push to `main` deploys to your project (e.g.
    | `MARGIN_SECRET` | `openssl rand -hex 32` | optional — self-provisioned into KV if unset |
    | `AGENT_API_KEY` / `REVIEWER_TOKEN` | `openssl rand -hex 24` | optional — global agent key / owner master |
    | `MARGIN_OWNER_PASSWORD` | `openssl rand -hex 16` | optional — Basic-Auth login for the `/analytics` dashboard |
+   | `MARGIN_QUEUE_MAX` / `MARGIN_QUEUE_WINDOW` | `120` / `300` (defaults) | optional — per-IP rate limit (requests / seconds) for the public `GET /api/queue` |
 
    With agent-first auth, **no keys are required** — the agent self-provisions per
    document. Set `MARGIN_SECRET` if you want signing to survive a KV reset; set the

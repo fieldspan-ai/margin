@@ -78,3 +78,28 @@ test('html is stored out-of-row, not inline in the doc json', async () => {
   assert.ok(raw.versions.every((v) => typeof v.html !== 'string'), 'no inline html in the json');
   assert.ok(fs.existsSync(path.join(dir, 'doc6', 'v1.html')), 'html lives in its own file');
 });
+
+test('agent-authored addReply/setStatus never move the review markers (the identity guard is load-bearing)', async () => {
+  await store.publish('doc7', { html: '<p>a</p>', author: agent });
+  const c = await store.addComment('doc7', { anchor: {}, body: 'hi', author: human });
+  let doc = await store.getDoc('doc7');
+  assert.equal(doc.review.version, 1, 'the human comment set the marker');
+  await store.addReply('doc7', c.id, { body: 'agent reply', author: agent });
+  await store.setStatus('doc7', c.id, 'open', agent);
+  doc = await store.getDoc('doc7');
+  assert.equal(doc.review.version, 1, 'agent activity must not move the reviewer’s marker');
+  assert.ok(!doc.reviews || Object.keys(doc.reviews).length === 0, 'an agent never creates a per-person marker');
+});
+
+test('getDocView strips rid from every comment/reply author (storage keeps it, the view never does)', async () => {
+  await store.publish('doc8', { html: '<p>hi</p>', author: agent });
+  const c = await store.addComment('doc8', { anchor: {}, body: 'note', author: { identity: 'human', name: 'A', rid: 'rid-x' } });
+  await store.addReply('doc8', c.id, { body: 'reply', author: { identity: 'human', name: 'B', rid: 'rid-y' } });
+  const raw = await store.getDoc('doc8');
+  assert.equal(raw.comments[0].author.rid, 'rid-x', 'storage keeps the rid');
+  assert.equal(raw.comments[0].replies[0].author.rid, 'rid-y', 'storage keeps it on replies too');
+  const view = await store.getDocView('doc8');
+  assert.equal(view.comments[0].author.rid, undefined, 'the view never exposes a comment rid');
+  assert.equal(view.comments[0].replies[0].author.rid, undefined, 'nor a reply rid');
+  assert.equal(view.comments[0].author.name, 'A', 'the rest of the author still comes through');
+});

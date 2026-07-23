@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Margin · Review queue</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<style>
+  :root{
+    --bg:#0f1115;--panel:#161922;--panel-2:#1d212c;--line:#2a2f3d;
+    --ink:#e8eaf0;--ink-dim:#9aa3b2;--ink-faint:#6b7382;
+    --human:#34d3b5;--agent:#8b7bff;--agent-2:#b9aaff;
+    --accent:#ffd166;--shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  button{font-family:inherit;cursor:pointer}
+
+  .topbar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#1a1e29,#161922);position:sticky;top:0;z-index:5}
+  .logo{display:flex;align-items:center;gap:8px;font-weight:700;text-decoration:none;color:inherit}
+  .logo .dot{width:20px;height:20px;border-radius:6px;background:linear-gradient(135deg,var(--agent),var(--human));display:grid;place-items:center;color:#0b0d12;font-weight:900;font-size:12px}
+  .title{font-weight:600}
+  .countpill{font-size:11px;font-weight:700;color:var(--accent);background:rgba(255,209,102,.14);border:1px solid rgba(255,209,102,.3);padding:1px 8px;border-radius:20px;display:none}
+  .countpill.on{display:inline-block}
+  .scopepill{font-size:11px;color:var(--ink-faint);border:1px solid var(--line);background:var(--panel-2);padding:1px 8px;border-radius:20px;white-space:nowrap;display:none}
+  .scopepill.on{display:inline-block}
+  .topbar .spacer{flex:1}
+  .backlink{font-size:13px;color:var(--ink-dim);text-decoration:none;border:1px solid var(--line);background:var(--panel-2);padding:5px 11px;border-radius:20px;white-space:nowrap}
+  .backlink:hover{color:var(--ink);border-color:var(--agent)}
+
+  .wrap{max-width:680px;margin:0 auto;padding:20px 16px 56px}
+  .sub{color:var(--ink-faint);font-size:12.5px;margin:2px 2px 18px}
+
+  .section{margin-top:26px}
+  .section:first-child{margin-top:0}
+  .section h2{font-size:13px;font-weight:650;color:var(--ink-dim);margin:0 0 10px;text-transform:uppercase;letter-spacing:.05em}
+
+  .qcard{display:flex;align-items:center;gap:12px;border:1px solid var(--line);background:var(--panel-2);border-radius:12px;padding:12px 13px;margin-bottom:10px}
+  .qcard.agentball{opacity:.7}
+  .qcard .info{flex:1;min-width:0}
+  .qcard .dt{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .qcard .dt a{text-decoration:none}
+  .qcard .dt a:hover{color:var(--agent-2)}
+  .qcard .why{font-size:12px;color:var(--ink-faint);margin-top:3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .ob{font-size:11px;font-weight:700;color:var(--accent);background:rgba(255,209,102,.14);padding:1px 7px;border-radius:20px;white-space:nowrap}
+  .live{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap}
+  .live .pdot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.75)}}
+  .donebtn{border:0;border-radius:9px;padding:7px 13px;font-size:12.5px;font-weight:600;background:var(--human);color:#063a32;flex:0 0 auto}
+  .donebtn:active{transform:scale(.97)}
+  .donebtn[disabled]{opacity:.5;cursor:default}
+
+  /* "All clear" is the most-muted tier: a plain list, not cards. */
+  .clearrow{display:flex;align-items:baseline;gap:10px;padding:7px 2px;border-bottom:1px solid var(--line);font-size:13.5px;color:var(--ink-faint)}
+  .clearrow:last-child{border-bottom:0}
+  .clearrow a{text-decoration:none;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .clearrow a:hover{color:var(--ink)}
+  .clearrow .when{margin-left:auto;font-size:11.5px;white-space:nowrap}
+
+  .state{text-align:center;color:var(--ink-faint);padding:64px 18px}
+  .state h3{color:var(--ink-dim);margin:0 0 6px}
+  .allcaught{border:1px dashed var(--line);border-radius:12px;padding:26px 16px;text-align:center;color:var(--ink-faint);font-size:13.5px}
+  .btn{border:0;border-radius:9px;padding:9px 14px;font-size:13px;font-weight:600;background:var(--human);color:#063a32}
+  .btn.mut{background:var(--panel-2);color:var(--ink-dim);border:1px solid var(--line)}
+
+  .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--panel-2);border:1px solid var(--line);color:var(--ink);padding:8px 14px;border-radius:20px;font-size:12.5px;z-index:70;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;box-shadow:var(--shadow)}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <a class="logo" href="/queue"><span class="dot">M</span><span class="title">Review queue</span></a>
+    <span class="countpill" id="countpill"></span>
+    <span class="scopepill" id="scopepill">owner view · all documents</span>
+    <span class="spacer"></span>
+    <a class="backlink" href="/">← Documents</a>
+    <a class="backlink" href="/analytics">Analytics</a>
+  </div>
+
+  <div class="wrap" id="wrap">
+    <div class="state" id="loading"><h3>Loading queue…</h3></div>
+    <div id="content" style="display:none"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script nonce="__CSP_NONCE__">
+(function(){
+  "use strict";
+  var $=function(s){return document.querySelector(s)};
+
+  function esc(s){return (s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]});}
+  function ago(ts){
+    if(!ts)return 'never';
+    var m=Math.round((Date.now()-ts)/60000);
+    if(m<1)return 'just now'; if(m<60)return m+'m ago';
+    var h=Math.round(m/60); if(h<24)return h+'h ago';
+    return Math.round(h/24)+'d ago';
+  }
+
+  var toastT=null;
+  function toast(msg){
+    var t=$('#toast'); t.textContent=msg; t.classList.add('on');
+    clearTimeout(toastT); toastT=setTimeout(function(){ t.classList.remove('on'); },2600);
+  }
+
+  function fail(html){
+    $('#loading').style.display='none';
+    var c=$('#content'); c.style.display='block';
+    c.innerHTML='<div class="state">'+html+'</div>';
+  }
+
+  function reason(it){
+    if(it.state==='awaiting_review')
+      return 'v'+it.version+' published '+esc(ago(it.last_published_at))+' · '+it.unseen_versions+' unseen version'+(it.unseen_versions===1?'':'s');
+    if(it.state==='needs_reply') return 'agent replied '+esc(ago(it.waiting_since));
+    return 'you commented '+esc(ago(it.waiting_since))+' — agent’s turn';
+  }
+
+  function card(it, mine){
+    var why=[reason(it)];
+    if(it.agent_waiting) why.push('<span class="live"><span class="pdot"></span>agent waiting now</span>');
+    if(it.open_comments>0) why.push('<span class="ob">'+it.open_comments+' open</span>');
+    // Done only means anything on awaiting_review: it marks the doc reviewed up
+    // to its current version. On needs_reply that's a no-op (markReviewed
+    // doesn't close threads) — the card would just bounce back on reconcile, so
+    // don't offer it; the title link (into the doc, to reply/resolve) is the
+    // real action there.
+    var showDone = it.state==='awaiting_review';
+    return '<div class="qcard'+(mine?'':' agentball')+'" data-doc="'+esc(it.doc_id)+'">'+
+      '<div class="info">'+
+        '<div class="dt"><a href="/d/'+encodeURIComponent(it.doc_id)+'">'+esc(it.title)+'</a></div>'+
+        '<div class="why">'+why.join('')+'</div>'+
+      '</div>'+
+      (showDone?'<button class="donebtn" data-doc="'+esc(it.doc_id)+'">Done</button>':'')+
+    '</div>';
+  }
+
+  function render(q){
+    var items=q.items||[];
+    var mine=items.filter(function(i){return i.state==='awaiting_review'||i.state==='needs_reply';});
+    var agent=items.filter(function(i){return i.state==='waiting_on_agent';});
+    var clear=items.filter(function(i){return i.state==='clear';});
+
+    $('#scopepill').classList.toggle('on', q.scope==='all');
+
+    var pill=$('#countpill');
+    pill.textContent=mine.length+' waiting';
+    pill.classList.toggle('on', mine.length>0);
+
+    // Personal queue with nothing opened yet: explain how docs get here.
+    if(q.scope!=='all'&&!items.length){
+      $('#loading').style.display='none';
+      var ec=$('#content'); ec.style.display='block';
+      ec.innerHTML='<div class="state"><h3>No documents yet.</h3><p>Open any Margin review link once and it&rsquo;ll appear here from then on.</p></div>';
+      return;
+    }
+
+    var html='<div class="sub">Every document where an agent is waiting on you · refreshed '+esc(ago(q.generated_at))+'</div>';
+
+    html+='<div class="section"><h2>Waiting on you</h2>';
+    html+= mine.length
+      ? mine.map(function(i){return card(i,true);}).join('')
+      : '<div class="allcaught">Nothing is waiting on you. ✨</div>';
+    html+='</div>';
+
+    if(agent.length){
+      html+='<div class="section"><h2>With the agent</h2>'+agent.map(function(i){return card(i,false);}).join('')+'</div>';
+    }
+    if(clear.length){
+      html+='<div class="section"><h2>All clear</h2>'+clear.map(function(i){
+        return '<div class="clearrow"><a href="/d/'+encodeURIComponent(i.doc_id)+'">'+esc(i.title)+'</a>'+
+          '<span class="when">updated '+esc(ago(i.updated_at))+'</span></div>';
+      }).join('')+'</div>';
+    }
+
+    $('#loading').style.display='none';
+    var c=$('#content'); c.style.display='block'; c.innerHTML=html;
+  }
+
+  function load(){
+    // Same-origin: the owner's httpOnly margin_token cookie (or the Basic
+    // credential the browser cached for this realm) rides along.
+    fetch('/api/queue').then(function(r){
+      // /api/queue can no longer 401/403 (it's public) — only 429 from the
+      // per-IP rate limit.
+      if(r.status===429){ fail('<h3>Too many refreshes</h3><p class="muted">Try again in a minute.</p>'); throw new Error('handled'); }
+      if(!r.ok) throw new Error('failed');
+      return r.json();
+    }).then(render).catch(function(e){
+      if(e&&e.message==='handled') return;
+      fail('<h3>Couldn’t load the queue</h3><p class="muted">The server may be unreachable.</p><button class="btn mut" id="retry">Retry</button>');
+      var b=$('#retry'); if(b) b.onclick=function(){ $('#content').style.display='none'; $('#loading').style.display='block'; load(); };
+    });
+  }
+
+  // Done → mark reviewed, optimistically drop the card, then reconcile.
+  $('#content').addEventListener('click',function(e){
+    var btn=e.target.closest?e.target.closest('.donebtn'):null;
+    if(!btn)return;
+    var id=btn.getAttribute('data-doc');
+    btn.disabled=true;
+    fetch('/api/docs/'+encodeURIComponent(id)+'/reviewed',{method:'POST'}).then(function(r){
+      if(!r.ok) throw new Error('failed');
+      var el=btn.closest('.qcard'); if(el) el.remove();
+      load();
+    }).catch(function(){
+      btn.disabled=false;
+      toast('Couldn’t mark reviewed — try again');
+    });
+  });
+
+  // Keep the triage list fresh: on tab return, and every 60s while visible.
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden) load(); });
+  setInterval(function(){ if(!document.hidden) load(); },60000);
+  load();
+})();
+</script>
+</body>
+</html>

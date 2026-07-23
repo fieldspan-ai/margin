@@ -49,3 +49,33 @@ test('kv: re-anchoring works across a republish (block ids carried)', async () =
   assert.equal(com.resolved.block_id, bid, 'duplicate-heading insert keeps the comment on the revenue paragraph');
   assert.equal(com.resolved.soft, false);
 });
+
+// The per-person queue's whole storage seam (reviewerIds, per-rid review
+// markers, the agent-wait meta map) over the same memory-redis client — proves
+// none of it is JSON-backend-specific.
+test('kv: bindReviewer → isBoundReviewer → markReviewed → reviewQueue → noteAgentWait', async () => {
+  const r = await store.publish('kqueue', { title: 'KQ', html: '<p>x</p>', author: agent });
+  assert.equal(r.version, 1);
+  assert.equal(await store.isBoundReviewer('kqueue', 'krid-1'), false);
+  await store.bindReviewer('kqueue', 'krid-1');
+  assert.equal(await store.isBoundReviewer('kqueue', 'krid-1'), true);
+
+  let q = await store.reviewQueue({ rid: 'krid-1' });
+  let it = q.items.find((i) => i.doc_id === 'kqueue');
+  assert.equal(it.state, 'awaiting_review');
+  assert.equal(it.agent_waiting, false);
+
+  const marked = await store.markReviewed('kqueue', { rid: 'krid-1' });
+  assert.deepEqual(marked, { doc_id: 'kqueue', reviewed_version: 1 });
+  q = await store.reviewQueue({ rid: 'krid-1' });
+  it = q.items.find((i) => i.doc_id === 'kqueue');
+  assert.equal(it.state, 'clear', 'the per-rid marker cleared it');
+
+  const before = await store.getDoc('kqueue');
+  await store.noteAgentWait('kqueue');
+  const after = await store.getDoc('kqueue');
+  assert.deepEqual(after, before, 'noteAgentWait never touches the doc record on KV either');
+  q = await store.reviewQueue({ rid: 'krid-1' });
+  it = q.items.find((i) => i.doc_id === 'kqueue');
+  assert.equal(it.agent_waiting, true, 'the agent_waits meta map round-trips through Redis');
+});
